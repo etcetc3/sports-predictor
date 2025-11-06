@@ -19,10 +19,234 @@ const FLAG_IMAGE = {
   br: "/flags/br.svg",
   kr: "/flags/kr.svg",
   mx: "/flags/mx.svg",
+  gb: "/flags/gb.svg",
+  ca: "/flags/ca.svg",
+  au: "/flags/au.svg",
+  nz: "/flags/nz.svg",
+  ru: "/flags/ru.svg",
+  jp: "/flags/jp.svg",
+  cn: "/flags/cn.svg",
+  de: "/flags/de.svg",
+  es: "/flags/es.svg",
+  it: "/flags/it.svg",
+  se: "/flags/se.svg",
+  no: "/flags/no.svg",
+  fi: "/flags/fi.svg",
+  pl: "/flags/pl.svg",
+  za: "/flags/za.svg",
+  ng: "/flags/ng.svg",
+  il: "/flags/il.svg",
+  ae: "/flags/ae.svg",
+  ie: "/flags/ie.svg",
+  nl: "/flags/nl.svg",
+  be: "/flags/be.svg",
+  ch: "/flags/ch.svg",
+  cz: "/flags/cz.svg",
+  sk: "/flags/sk.svg",
+  at: "/flags/at.svg",
+  ar: "/flags/ar.svg",
+  cl: "/flags/cl.svg",
+  co: "/flags/co.svg",
+  pe: "/flags/pe.svg",
+  ph: "/flags/ph.svg",
+  th: "/flags/th.svg",
+  vn: "/flags/vn.svg",
+  in: "/flags/in.svg",
+  pk: "/flags/pk.svg",
+  ma: "/flags/ma.svg",
+  cm: "/flags/cm.svg",
+  gh: "/flags/gh.svg",
+  pr: "/flags/pr.svg",
+  pt: "/flags/pt.svg",
+  dk: "/flags/dk.svg",
+  hu: "/flags/hu.svg",
+  fr: "/flags/fr.svg",
+};
+
+const COUNTRY_TO_CODE = {
+  "united states": "us",
+  "united states of america": "us",
+  "usa": "us",
+  "america": "us",
+  "united kingdom": "gb",
+  england: "gb",
+  scotland: "gb",
+  "north ireland": "gb",
+  britain: "gb",
+  brazil: "br",
+  canada: "ca",
+  mexico: "mx",
+  france: "fr",
+  spain: "es",
+  italy: "it",
+  germany: "de",
+  ireland: "ie",
+  sweden: "se",
+  norway: "no",
+  denmark: "dk",
+  netherlands: "nl",
+  belgium: "be",
+  "costa rica": "cr",
+  "dominican republic": "do",
+  poland: "pl",
+  croatia: "hr",
+  serbia: "rs",
+  georgia: "ge",
+  russia: "ru",
+  ukraine: "ua",
+  belarus: "by",
+  australia: "au",
+  "new zealand": "nz",
+  china: "cn",
+  japan: "jp",
+  korea: "kr",
+  "south korea": "kr",
+  "republic of korea": "kr",
+  uganda: "ug",
+  nigeria: "ng",
+  ghana: "gh",
+  cameroon: "cm",
+  morocco: "ma",
+  "dominican republic": "do",
+  cuba: "cu",
+  romania: "ro",
+  argentina: "ar",
+  chile: "cl",
+  peru: "pe",
+  colombia: "co",
+  france: "fr",
+  "puerto rico": "pr",
+  "czech republic": "cz",
+  slovakia: "sk",
+  switzerland: "ch",
+  austria: "at",
+  lithuania: "lt",
+  latvia: "lv",
+  estonia: "ee",
+  philippines: "ph",
+  thailand: "th",
+  vietnam: "vn",
+  "south africa": "za",
+  zimbabwe: "zw",
+  "bosnia and herzegovina": "ba",
+  albania: "al",
+  greece: "gr",
+  turkey: "tr",
+  israel: "il",
+  india: "in",
+  pakistan: "pk",
+  "united arab emirates": "ae",
+  kazakhstan: "kz",
+  uzbekistan: "uz",
+  kyrgyzstan: "kg",
+  moldova: "md",
+  "south korea": "kr",
+  "north korea": "kp",
+  "trinidad and tobago": "tt",
+  "new caledonia": "nc",
+  "dominica": "dm",
 };
 
 const DEFAULT_FLAG = "/flags/default.svg";
 const DEFAULT_CARD_IMAGE = "/assets/fighters/default-avatar.png";
+
+const ISO3_TO_ISO2 = {
+  USA: "us",
+  CAN: "ca",
+  MEX: "mx",
+  BRA: "br",
+  ARG: "ar",
+  CHL: "cl",
+  PER: "pe",
+  COL: "co",
+  FRA: "fr",
+  GBR: "gb",
+  ENG: "gb",
+  IRL: "ie",
+  ESP: "es",
+  ITA: "it",
+  DEU: "de",
+  GER: "de",
+  SWE: "se",
+  NOR: "no",
+  DNK: "dk",
+  FIN: "fi",
+  POL: "pl",
+  NLD: "nl",
+  BEL: "be",
+  PRT: "pt",
+  CHE: "ch",
+  AUT: "at",
+  ROU: "ro",
+  HRV: "hr",
+  SRB: "rs",
+  SVN: "si",
+  SVK: "sk",
+  CZE: "cz",
+  RUS: "ru",
+  UKR: "ua",
+  BLR: "by",
+  GEO: "ge",
+  ARM: "am",
+  KAZ: "kz",
+  UZB: "uz",
+  KGZ: "kg",
+  CHN: "cn",
+  JPN: "jp",
+  KOR: "kr",
+  PRK: "kp",
+  THA: "th",
+  VNM: "vn",
+  PHL: "ph",
+  AUS: "au",
+  NZL: "nz",
+  ZAF: "za",
+  NGA: "ng",
+  GHA: "gh",
+  CMR: "cm",
+  MAR: "ma",
+  EGY: "eg",
+  TUN: "tn",
+  DZA: "dz",
+  UGA: "ug",
+  KEN: "ke",
+  TZA: "tz",
+  ZWE: "zw",
+  DOM: "do",
+  CUB: "cu",
+  PRI: "pr",
+  BHS: "bs",
+  JAM: "jm",
+  PAN: "pa",
+  CRI: "cr",
+  ECU: "ec",
+  BOL: "bo",
+  VEN: "ve",
+  LKA: "lk",
+  IND: "in",
+  PAK: "pk",
+  ARE: "ae",
+  QAT: "qa",
+  SAU: "sa",
+  ISR: "il",
+  TUR: "tr",
+  GRC: "gr",
+  ALB: "al",
+  BIH: "ba",
+  MNE: "me",
+  MKD: "mk",
+  HUN: "hu",
+  LTU: "lt",
+  LVA: "lv",
+  EST: "ee",
+  MDA: "md",
+  BGR: "bg",
+  CYP: "cy",
+  SVN: "si",
+  SGP: "sg",
+  MYS: "my",
+  IDN: "id",
+};
 
 const FIGHTER_MEDIA = {
   "Steve Garcia": {
@@ -40,10 +264,35 @@ const FIGHTER_MEDIA = {
     full: "/assets/fighters/CORTES-ACOSTA_WALDO_L_03-15.avif",
     flag: FLAG_IMAGE.do,
   },
+  "Waldo Cortes-Acosta": {
+    card: "/assets/fighters/CORTES-ACOSTA_WALDO_L_03-15.avif",
+    full: "/assets/fighters/CORTES-ACOSTA_WALDO_L_03-15.avif",
+    flag: FLAG_IMAGE.do,
+  },
   "Ante Delija": {
     card: "/assets/fighters/DELIJA_ANTE_R_09-06.avif",
     full: "/assets/fighters/DELIJA_ANTE_R_09-06.avif",
     flag: FLAG_IMAGE.hr,
+  },
+  "Jeremiah Wells": {
+    card: "/assets/fighters/WELLS_JEREMIAH_L_08-05.avif",
+    full: "/assets/fighters/WELLS_JEREMIAH_L_08-05.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Themba Gorimbo": {
+    card: "/assets/fighters/GORIMBO_THEMBA_R_12-07.avif",
+    full: "/assets/fighters/GORIMBO_THEMBA_R_12-07.avif",
+    flag: FLAG_IMAGE.zw,
+  },
+  "Isaac Dulgarian": {
+    card: "/assets/fighters/DULGARIAN_ISAAC_L_09-07.avif",
+    full: "/assets/fighters/DULGARIAN_ISAAC_L_09-07.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Yadier del Valle": {
+    card: "/assets/fighters/DELVALLE_YADIER_R_10-15.avif",
+    full: "/assets/fighters/DELVALLE_YADIER_R_10-15.avif",
+    flag: FLAG_IMAGE.cu,
   },
 };
 
@@ -173,7 +422,7 @@ const FALLBACK_SCHEDULE = [
   },
 ];
 
-const STATS = {
+const BASELINE_STATS = {
   "Steve Garcia": {
     country: "United States",
     height: `6'0"`,
@@ -182,7 +431,7 @@ const STATS = {
     leg_reach: "41 in",
     significantStrikes: 3.8,
     takedownAvg: 0.6,
-    odds: 1.85,
+    odds: -115,
   },
   "David Onama": {
     country: "Uganda",
@@ -192,7 +441,7 @@ const STATS = {
     leg_reach: "40 in",
     significantStrikes: 4.2,
     takedownAvg: 1.4,
-    odds: 2.05,
+    odds: 105,
   },
   "Waldo Acosta": {
     country: "Dominican Republic",
@@ -202,18 +451,44 @@ const STATS = {
   },
 };
 
-function resolveFlagCode(value) {
-  if (!value) {
-    return "us";
+function resolveFlagCode(primary, secondary) {
+  const attempts = [primary, secondary];
+  for (const attempt of attempts) {
+    if (!attempt) {
+      continue;
+    }
+
+    const raw = String(attempt).trim();
+    if (!raw) {
+      continue;
+    }
+
+    if (/^[a-z]{2}$/i.test(raw)) {
+      return raw.toLowerCase();
+    }
+
+    const upper = raw.toUpperCase();
+    if (ISO3_TO_ISO2[upper]) {
+      return ISO3_TO_ISO2[upper];
+    }
+
+    const normalized = raw.toLowerCase();
+    if (COUNTRY_TO_CODE[normalized]) {
+      return COUNTRY_TO_CODE[normalized];
+    }
+
+    const cleaned = normalized.replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+    if (COUNTRY_TO_CODE[cleaned]) {
+      return COUNTRY_TO_CODE[cleaned];
+    }
+
+    const token = cleaned.split(" ").find(Boolean);
+    if (token && COUNTRY_TO_CODE[token]) {
+      return COUNTRY_TO_CODE[token];
+    }
   }
-  const str = String(value).trim();
-  if (!str) {
-    return "us";
-  }
-  if (str.length === 2) {
-    return str.toLowerCase();
-  }
-  return str.slice(0, 2).toLowerCase();
+
+  return "us";
 }
 
 function getFlagImage(code, fighterName) {
@@ -227,15 +502,67 @@ function getFlagImage(code, fighterName) {
     return FLAG_IMAGE[normalized];
   }
 
-  return DEFAULT_FLAG;
+  return normalized ? `/flags/${normalized}.svg` : DEFAULT_FLAG;
 }
 
-function getFighterImage(name, variant = "card") {
+function normalizeImageUrl(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function selectFighterImage(profile = {}, variant = "card") {
+  const name = profile.resolvedName || profile.Name || profile.FullName;
+  if (name && FIGHTER_MEDIA[name]?.[variant]) {
+    return FIGHTER_MEDIA[name][variant];
+  }
+
+  const candidates = [
+    profile.CardImage,
+    profile.cardImage,
+    profile.FullImage,
+    profile.fullImage,
+    profile.PhotoUrl,
+    profile.ProfileImageUrl,
+    profile.ImageUrl,
+    profile.HeadshotUrl,
+    profile.FightMetricProfileImage,
+    profile.FanDuelImageUrl,
+    profile.DraftKingsImageUrl,
+    profile.FantasyDraftImageUrl,
+  ];
+
+  const match = candidates.map(normalizeImageUrl).find(Boolean);
+  if (match) {
+    return match;
+  }
+
+  if (name && FIGHTER_MEDIA[name]?.card && variant === "full") {
+    return FIGHTER_MEDIA[name].card;
+  }
+
+  return null;
+}
+
+function getFighterImage(name, variant = "card", fallback) {
   if (FIGHTER_MEDIA[name]?.[variant]) {
     return FIGHTER_MEDIA[name][variant];
   }
 
+  if (fallback) {
+    return fallback;
+  }
+
   return DEFAULT_CARD_IMAGE;
+}
+
+function fallbackImage(event, type = "flag") {
+  if (event?.currentTarget) {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = type === "flag" ? DEFAULT_FLAG : DEFAULT_CARD_IMAGE;
+  }
 }
 
 function formatDiff(a, b) {
@@ -265,7 +592,7 @@ function formatEventDate(value) {
   }
 
   return date.toLocaleDateString("en-US", {
-    month: "short",
+    month: "long",
     day: "numeric",
     year: "numeric",
   });
@@ -285,6 +612,56 @@ function formatOptionDate(value) {
     month: "short",
     day: "numeric",
   });
+}
+
+function inchesToHeight(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+  if (typeof value === "string" && value.includes("'")) {
+    return value;
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return null;
+  }
+  const feet = Math.floor(num / 12);
+  const inches = Math.round(num % 12);
+  return `${feet}'${inches}"`;
+}
+
+function withUnit(value, unit) {
+  if (value == null || value === "") {
+    return null;
+  }
+  if (typeof value === "string" && value.toLowerCase().includes(unit)) {
+    return value;
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return String(value);
+  }
+  return `${num} ${unit}`;
+}
+
+function deriveFighterStats(full = {}, entry = {}) {
+  const height = inchesToHeight(full.Height || entry.Height);
+  const weight = withUnit(full.Weight || entry.Weight, "lb");
+  const reach = withUnit(full.Reach, "in") || withUnit(entry.Reach, "in");
+  const legReach = withUnit(full.LegReach, "in") || withUnit(entry.LegReach, "in");
+  const strikes = full.StrikesLandedPerMinute ?? entry.SignificantStrikesLandedPerMinute;
+  const takedownAvg = full.TakedownAveragePer15Minutes ?? entry.TakedownAveragePer15Minutes;
+
+  return {
+    country: full.Country || entry.Country || entry.Nationality || "—",
+    height,
+    weight,
+    reach,
+    leg_reach: legReach,
+    significantStrikes: strikes != null ? Number(strikes).toFixed(2) : null,
+    takedownAvg: takedownAvg != null ? Number(takedownAvg).toFixed(2) : null,
+    odds: entry.Moneyline ?? null,
+  };
 }
 
 function buildPyramidLayout(list = []) {
@@ -316,6 +693,17 @@ function extractEventLocation(details = {}) {
   return candidates[0] || "Location TBA";
 }
 
+function formatOdds(odds) {
+  if (odds == null) {
+    return "—";
+  }
+  const num = Number(odds);
+  if (!Number.isFinite(num)) {
+    return String(odds);
+  }
+  return num > 0 ? `+${num}` : String(num);
+}
+
 function FightCard({ fight, accent }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [activeTab, setActiveTab] = useState(ANALYSIS_TABS[0]);
@@ -340,9 +728,23 @@ function FightCard({ fight, accent }) {
   const fighter2Record = fight.record2 || "0-0-0";
   const fighter1Flag = fight.flag1 || "us";
   const fighter2Flag = fight.flag2 || "us";
+  const flagSrc1 = fight.flagAsset1 || getFlagImage(fighter1Flag, fighter1Name);
+  const flagSrc2 = fight.flagAsset2 || getFlagImage(fighter2Flag, fighter2Name);
+  const cardImage1 = getFighterImage(fighter1Name, "card", fight.cardImage1);
+  const cardImage2 = getFighterImage(fighter2Name, "card", fight.cardImage2);
+  const fullImage1 = getFighterImage(
+    fighter1Name,
+    "full",
+    fight.fullImage1 || fight.cardImage1 || cardImage1,
+  );
+  const fullImage2 = getFighterImage(
+    fighter2Name,
+    "full",
+    fight.fullImage2 || fight.cardImage2 || cardImage2,
+  );
 
-  const s1 = STATS[fighter1Name] || {};
-  const s2 = STATS[fighter2Name] || {};
+  const s1 = fight.stats1 || BASELINE_STATS[fighter1Name] || {};
+  const s2 = fight.stats2 || BASELINE_STATS[fighter2Name] || {};
 
   const cardClass = ["fight-card", accent ? `accent-${accent}` : "", isInteractive ? "" : "locked"]
     .filter(Boolean)
@@ -365,9 +767,17 @@ function FightCard({ fight, accent }) {
             <span className="fighter-record">{fighter1Record}</span>
           </div>
           <div className="matchup-flags">
-            <img src={getFlagImage(fighter1Flag, fighter1Name)} alt={`${fighter1Name} flag`} />
+            <img
+              src={flagSrc1}
+              alt={`${fighter1Name} flag`}
+              onError={(event) => fallbackImage(event, "flag")}
+            />
             <span className="vs-label">VS</span>
-            <img src={getFlagImage(fighter2Flag, fighter2Name)} alt={`${fighter2Name} flag`} />
+            <img
+              src={flagSrc2}
+              alt={`${fighter2Name} flag`}
+              onError={(event) => fallbackImage(event, "flag")}
+            />
           </div>
           <div className="fighter-block align-right">
             <span className="fighter-name">{fighter2Name}</span>
@@ -377,10 +787,20 @@ function FightCard({ fight, accent }) {
 
         <div className="torso-row">
           <div className="torso left">
-            <img src={getFighterImage(fighter1Name, "card")} alt={fighter1Name} loading="lazy" />
+            <img
+              src={cardImage1}
+              alt={fighter1Name}
+              loading="lazy"
+              onError={(event) => fallbackImage(event, "fighter")}
+            />
           </div>
           <div className="torso right">
-            <img src={getFighterImage(fighter2Name, "card")} alt={fighter2Name} loading="lazy" />
+            <img
+              src={cardImage2}
+              alt={fighter2Name}
+              loading="lazy"
+              onError={(event) => fallbackImage(event, "fighter")}
+            />
           </div>
         </div>
 
@@ -400,12 +820,20 @@ function FightCard({ fight, accent }) {
             <div className="analysis-window" onClick={(event) => event.stopPropagation()}>
               <div className="analysis-header">
                 <div className="analysis-athlete">
-                  <img src={getFighterImage(fighter1Name, "full")} alt={fighter1Name} />
+                  <img
+                    src={fullImage1}
+                    alt={fighter1Name}
+                    onError={(event) => fallbackImage(event, "fighter")}
+                  />
                   <div className="analysis-meta">
                     <strong>{fighter1Name}</strong>
                     <span>{fighter1Record}</span>
                     <div className="analysis-flag">
-                      <img src={getFlagImage(fighter1Flag, fighter1Name)} alt={`${fighter1Name} flag`} />
+                      <img
+                        src={flagSrc1}
+                        alt={`${fighter1Name} flag`}
+                        onError={(event) => fallbackImage(event, "flag")}
+                      />
                       <span>{s1.country || "—"}</span>
                     </div>
                   </div>
@@ -414,12 +842,20 @@ function FightCard({ fight, accent }) {
                 <div className="analysis-divider">VS</div>
 
                 <div className="analysis-athlete align-right">
-                  <img src={getFighterImage(fighter2Name, "full")} alt={fighter2Name} />
+                  <img
+                    src={fullImage2}
+                    alt={fighter2Name}
+                    onError={(event) => fallbackImage(event, "fighter")}
+                  />
                   <div className="analysis-meta">
                     <strong>{fighter2Name}</strong>
                     <span>{fighter2Record}</span>
                     <div className="analysis-flag">
-                      <img src={getFlagImage(fighter2Flag, fighter2Name)} alt={`${fighter2Name} flag`} />
+                      <img
+                        src={flagSrc2}
+                        alt={`${fighter2Name} flag`}
+                        onError={(event) => fallbackImage(event, "flag")}
+                      />
                       <span>{s2.country || "—"}</span>
                     </div>
                   </div>
@@ -459,21 +895,30 @@ function FightCard({ fight, accent }) {
                         <span className="label">Leg Reach</span>
                         <span className="value">{s1.leg_reach || "—"}</span>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Sig. Strikes</span>
-                        <span className="value">{s1.significantStrikes ?? "—"}</span>
-                      </div>
+                    <div className="stat-item">
+                      <span className="label">Sig. Strikes</span>
+                      <span className="value">{s1.significantStrikes ?? "—"}</span>
                     </div>
-
-                    <div className="stat-col diff">
-                      <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
-                      <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
-                      <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
-                      <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
-                      <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
+                    <div className="stat-item">
+                      <span className="label">Takedown Avg</span>
+                      <span className="value">{s1.takedownAvg ?? "—"}</span>
                     </div>
+                    <div className="stat-item">
+                      <span className="label">Odds</span>
+                      <span className="value">{formatOdds(s1.odds)}</span>
+                    </div>
+                  </div>
 
-                    <div className="stat-col">
+                  <div className="stat-col diff">
+                    <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
+                    <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
+                    <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
+                    <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
+                    <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
+                    <div className="diff-item">{formatDiff(s1.takedownAvg, s2.takedownAvg)}</div>
+                  </div>
+
+                  <div className="stat-col">
                       <div className="stat-item">
                         <span className="label">Height</span>
                         <span className="value">{s2.height || "—"}</span>
@@ -490,12 +935,20 @@ function FightCard({ fight, accent }) {
                         <span className="label">Leg Reach</span>
                         <span className="value">{s2.leg_reach || "—"}</span>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Sig. Strikes</span>
-                        <span className="value">{s2.significantStrikes ?? "—"}</span>
-                      </div>
+                    <div className="stat-item">
+                      <span className="label">Sig. Strikes</span>
+                      <span className="value">{s2.significantStrikes ?? "—"}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="label">Takedown Avg</span>
+                      <span className="value">{s2.takedownAvg ?? "—"}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="label">Odds</span>
+                      <span className="value">{formatOdds(s2.odds)}</span>
                     </div>
                   </div>
+                </div>
                 ) : (
                   <div className="placeholder-panel">
                     <h3>{activeTab} insights</h3>
@@ -523,7 +976,7 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
   const [currentEvent, setCurrentEvent] = useState(null);
   const [eventMeta, setEventMeta] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const fightersCache = useRef([]);
+  const fightersCache = useRef({ list: [], map: new Map() });
   const loadingStartRef = useRef(null);
 
   useEffect(() => {
@@ -568,7 +1021,7 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           return dateA - dateB;
         });
 
-        setEvents(upcoming.length ? upcoming : FALLBACK_SCHEDULE);
+        setEvents(upcoming.length ? [...upcoming, ...FALLBACK_SCHEDULE] : FALLBACK_SCHEDULE);
       } catch (error) {
         console.error("Schedule Error:", error);
         if (isMounted) {
@@ -621,17 +1074,17 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
       loadingStartRef.current = Date.now();
       setIsLoading(true);
 
+      const fallbackMapper = (fight, index, cardType) => ({
+        ...fight,
+        cardType,
+        isInteractive: cardType === "main" && index < FEATURED_CARDS,
+        stats1: BASELINE_STATS[fight.fighter1],
+        stats2: BASELINE_STATS[fight.fighter2],
+      });
+
       if (selectedEvent === FALLBACK_EVENT_ID) {
-        const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => ({
-          ...fight,
-          cardType: "main",
-          isInteractive: index < FEATURED_CARDS,
-        }));
-        const featuredPrelims = FALLBACK_EVENT.prelims.map((fight) => ({
-          ...fight,
-          cardType: "prelim",
-          isInteractive: false,
-        }));
+        const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => fallbackMapper(fight, index, "main"));
+        const featuredPrelims = FALLBACK_EVENT.prelims.map((fight, index) => fallbackMapper(fight, index, "prelim"));
         setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
         setEventMeta(FALLBACK_EVENT.meta);
         finishLoading();
@@ -639,13 +1092,18 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
       }
 
       try {
-        let fighters = fightersCache.current;
-        if (!fighters.length) {
-          fighters = await fetchFighters();
+        if (!fightersCache.current.list.length) {
+          const fighters = await fetchFighters();
           if (!isMounted) {
             return;
           }
-          fightersCache.current = fighters;
+          const map = new Map();
+          fighters.forEach((athlete) => {
+            if (athlete?.FighterId) {
+              map.set(athlete.FighterId, athlete);
+            }
+          });
+          fightersCache.current = { list: fighters, map };
         }
 
         const details = await fetchEvent(selectedEvent);
@@ -666,13 +1124,27 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
 
         const enrichedFights = details.Fights.map((fight) => {
           const fightersInFight = (fight.Fighters || []).map((entry) => {
-            const full = fighters.find((athlete) => athlete.FighterId === entry.FighterId);
-            const name = full?.Name || [full?.FirstName, full?.LastName].filter(Boolean).join(" ") || entry.Name;
-            return {
+            const full = fightersCache.current.map.get(entry.FighterId) || {};
+            const resolvedName =
+              full?.Name || [full?.FirstName, full?.LastName].filter(Boolean).join(" ") || entry.Name;
+
+            const profile = {
               ...entry,
               ...full,
-              resolvedName: name,
-              flag: (full?.CountryCode || full?.Country || "us").toLowerCase(),
+              resolvedName,
+            };
+
+            const flagCode = resolveFlagCode(
+              full?.CountryCode || entry.CountryCode,
+              full?.Country || entry.Country || entry.Nationality,
+            );
+
+            return {
+              ...profile,
+              flag: flagCode,
+              stats: deriveFighterStats(full, entry),
+              cardImage: selectFighterImage(profile, "card"),
+              fullImage: selectFighterImage(profile, "full"),
             };
           });
 
@@ -696,16 +1168,28 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           const name2 = f2?.resolvedName || "TBA";
           const record1 = f1?.Record || `${f1?.Wins ?? 0}-${f1?.Losses ?? 0}-${f1?.Draws ?? 0}`;
           const record2 = f2?.Record || `${f2?.Wins ?? 0}-${f2?.Losses ?? 0}-${f2?.Draws ?? 0}`;
+          const flag1 = f1?.flag || resolveFlagCode(f1?.CountryCode, f1?.Country || f1?.Nationality);
+          const flag2 = f2?.flag || resolveFlagCode(f2?.CountryCode, f2?.Country || f2?.Nationality);
 
           return {
             fighter1: name1,
             fighter2: name2,
             record1,
             record2,
-            flag1: resolveFlagCode(f1?.flag || f1?.CountryCode || f1?.Country),
-            flag2: resolveFlagCode(f2?.flag || f2?.CountryCode || f2?.Country),
+            flag1,
+            flag2,
+            flagAsset1: getFlagImage(flag1, name1),
+            flagAsset2: getFlagImage(flag2, name2),
+            cardImage1: f1?.cardImage,
+            cardImage2: f2?.cardImage,
+            fullImage1: f1?.fullImage,
+            fullImage2: f2?.fullImage,
             cardType,
             isInteractive: cardType === "main" && index < FEATURED_CARDS,
+            stats1: f1?.stats,
+            stats2: f2?.stats,
+            odds1: f1?.Moneyline ?? f1?.stats?.odds ?? null,
+            odds2: f2?.Moneyline ?? f2?.stats?.odds ?? null,
           };
         };
 
@@ -721,16 +1205,8 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
       } catch (error) {
         console.error("Event Error:", error);
         if (isMounted) {
-          const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => ({
-            ...fight,
-            cardType: "main",
-            isInteractive: index < FEATURED_CARDS,
-          }));
-          const featuredPrelims = FALLBACK_EVENT.prelims.map((fight) => ({
-            ...fight,
-            cardType: "prelim",
-            isInteractive: false,
-          }));
+          const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => fallbackMapper(fight, index, "main"));
+          const featuredPrelims = FALLBACK_EVENT.prelims.map((fight, index) => fallbackMapper(fight, index, "prelim"));
           setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
           setEventMeta(FALLBACK_EVENT.meta);
         }
