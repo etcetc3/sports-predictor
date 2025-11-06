@@ -1,682 +1,883 @@
-import React, { useState } from "react";
-import ReactCountryFlag from "react-country-flag";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./UFCPage.css";
+import { fetchSchedule, fetchEvent, fetchFighters } from "../api/sportsdata";
 
-const FIGHTER_IMAGE = {
-  "Steve Garcia": "GARCIA_STEVE_L_09-07.avif",
-  "David Onama": "ONAMA_DAVID_R_04-26.avif",
-  "Waldo Acosta": "CORTES-ACOSTA_WALDO_L_03-15.avif",
-  "Ante Delija": "DELIJA_ANTE_R_09-06.avif",
-  "Jeremiah Wells": "WELLS_JEREMIAH_L_08-05.avif",
-  "Themba Gorimbo": "GORIMBO_THEMBA_R_12-07.avif",
-  "Isaac Dulgarian": "DULGARIAN_ISAAC_L_09-07.avif",
-  "Yadier del Valle": "DELVALLE_YADIER_R_10-15.avif",
-  "Charles Radtke": "RADTKE_CHARLES_L_06-08.avif",
-  "Daniel Frunza": "FRUNZA_DANIEL_R_04-05.avif",
-  "Allan Nascimento": "NASCIMENTO_ALLAN_L_01-14.avif",
-  "Rafael Estevam": "ESTEVAM_RAFAEL_R_11-18.avif",
-  "Billy Elekana": "ELEKANA_BILLY_L_01-18.avif",
-  "Kevin Christian": "CHRISTIAN_KEVIN_L_09-24.avif",
-  "Timmy Cuamba": "CUAMBA_TIMOTHY_L_04-26.avif",
-  "ChangHo Lee": "LEE_CHANGHO_R_04-05.avif",
-  "Donte Johnson": "JOHNSON_DONTE_L_08-26.avif",
-  "Sedriques Dumas": "DUMAS_SEDRIQUES_R_06-24.avif",
-  "Phil Rowe": "ROWE_PHIL_L_06-14.avif",
-  "Seokhyeon Ko": "KO_SEOKHYEON_L_06-21.avif",
-  "Ketlen Vieira": "VIEIRA_KETLEN_L_05-31.avif",
-  "Norma Dumont": "DUMONT_NORMA_R_09-14.avif",
-  "Alice Ardelean": "ARDELEAN_ALICE_R_07-27.avif",
-  "Montserrat Ruiz": "RUIZ_MONTSERRAT_CONEJO_R_11-04.avif",
-  "Talita Alencar": "ALENCAR_TALITA_L_12-09.avif",
-  "Ariane Carnelossi": "CARNELOSSI_ARIANE_R_05-18.avif",
+const ANALYSIS_TABS = ["Matchup", "Result", "Strikes", "Grappling", "Odds"];
+const PYRAMID_TEMPLATE = [4, 3, 3, 2, 2, 1];
+const FEATURED_CARDS = 2;
+const MIN_LOADING_MS = 650;
+
+const FLAG_IMAGE = {
+  us: "/flags/us.svg",
+  ug: "/flags/ug.svg",
+  do: "/flags/do.svg",
+  hr: "/flags/hr.svg",
+  zw: "/flags/zw.svg",
+  cu: "/flags/cu.svg",
+  ro: "/flags/ro.svg",
+  br: "/flags/br.svg",
+  kr: "/flags/kr.svg",
+  mx: "/flags/mx.svg",
 };
 
-function getFighterImage(name) {
-  if (!name) return "/assets/fighters/default-avatar.png";
+const DEFAULT_FLAG = "/flags/default.svg";
+const DEFAULT_CARD_IMAGE = "/assets/fighters/default-avatar.png";
 
-  // Exakter Treffer
-  if (FIGHTER_IMAGE[name]) return `/assets/fighters/${FIGHTER_IMAGE[name]}`;
+const FIGHTER_MEDIA = {
+  "Steve Garcia": {
+    card: "/assets/fighters/GARCIA_STEVE_L_09-07.avif",
+    full: "/assets/fighters/GARCIA_STEVE_L_09-07.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "David Onama": {
+    card: "/assets/fighters/ONAMA_DAVID_R_04-26.avif",
+    full: "/assets/fighters/ONAMA_DAVID_R_04-26.avif",
+    flag: FLAG_IMAGE.ug,
+  },
+  "Waldo Acosta": {
+    card: "/assets/fighters/CORTES-ACOSTA_WALDO_L_03-15.avif",
+    full: "/assets/fighters/CORTES-ACOSTA_WALDO_L_03-15.avif",
+    flag: FLAG_IMAGE.do,
+  },
+  "Ante Delija": {
+    card: "/assets/fighters/DELIJA_ANTE_R_09-06.avif",
+    full: "/assets/fighters/DELIJA_ANTE_R_09-06.avif",
+    flag: FLAG_IMAGE.hr,
+  },
+};
 
-  // Nachname-Suche
-  const last = name.split(" ").pop().toLowerCase();
-  const match = Object.keys(FIGHTER_IMAGE).find((k) =>
-    k.toLowerCase().includes(last)
-  );
-  if (match) return `/assets/fighters/${FIGHTER_IMAGE[match]}`;
+const FALLBACK_EVENT_ID = "offline-event";
 
-  // Fallback
-  return "/assets/fighters/default-avatar.png";
-}
-
-const ufcFightNightNov1 = {
+const FALLBACK_EVENT = {
+  meta: {
+    name: "UFC Fight Night (Offline Mode)",
+    date: "2024-11-01",
+    location: "UFC APEX — Las Vegas, NV",
+  },
   mainCard: [
-    { fighter1: "Steve Garcia", record1: "14-5-0", flag1: "us", fighter2: "David Onama", record2: "13-2-0", flag2: "ug" },
-    { fighter1: "Waldo Acosta", record1: "10-1-0", flag1: "do", fighter2: "Ante Delija", record2: "24-5-0", flag2: "hr" },
-    { fighter1: "Jeremiah Wells", record1: "12-3-1", flag1: "us", fighter2: "Themba Gorimbo", record2: "12-4-0", flag2: "zw" },
-    { fighter1: "Isaac Dulgarian", record1: "7-0-0", flag1: "us", fighter2: "Yadier del Valle", record2: "6-1-0", flag2: "cu" },
-    { fighter1: "Charles Radtke", record1: "9-3-0", flag1: "us", fighter2: "Daniel Frunza", record2: "7-2-0", flag2: "ro" },
-    { fighter1: "Allan Nascimento", record1: "21-6-0", flag1: "br", fighter2: "Rafael Estevam", record2: "12-0-0", flag2: "br" },
+    {
+      fighter1: "Steve Garcia",
+      record1: "14-5-0",
+      flag1: "us",
+      fighter2: "David Onama",
+      record2: "13-2-0",
+      flag2: "ug",
+    },
+    {
+      fighter1: "Waldo Acosta",
+      record1: "10-1-0",
+      flag1: "do",
+      fighter2: "Ante Delija",
+      record2: "24-5-0",
+      flag2: "hr",
+    },
+    {
+      fighter1: "Jeremiah Wells",
+      record1: "12-3-1",
+      flag1: "us",
+      fighter2: "Themba Gorimbo",
+      record2: "12-4-0",
+      flag2: "zw",
+    },
+    {
+      fighter1: "Isaac Dulgarian",
+      record1: "7-0-0",
+      flag1: "us",
+      fighter2: "Yadier del Valle",
+      record2: "6-1-0",
+      flag2: "cu",
+    },
+    {
+      fighter1: "Charles Radtke",
+      record1: "9-3-0",
+      flag1: "us",
+      fighter2: "Daniel Frunza",
+      record2: "7-2-0",
+      flag2: "ro",
+    },
+    {
+      fighter1: "Allan Nascimento",
+      record1: "21-6-0",
+      flag1: "br",
+      fighter2: "Rafael Estevam",
+      record2: "12-0-0",
+      flag2: "br",
+    },
   ],
   prelims: [
-    { fighter1: "Billy Elekana", record1: "5-1-0", flag1: "us", fighter2: "Kevin Christian", record2: "7-3-0", flag2: "br" },
-    { fighter1: "Timmy Cuamba", record1: "9-2-0", flag1: "us", fighter2: "ChangHo Lee", record2: "8-3-0", flag2: "kr" },
-    { fighter1: "Donte Johnson", record1: "4-0-0", flag1: "us", fighter2: "Sedriques Dumas", record2: "9-1-0", flag2: "us" },
-    { fighter1: "Ketlen Vieira", record1: "14-3-0", flag1: "br", fighter2: "Norma Dumont", record2: "10-2-0", flag2: "br" },
-    { fighter1: "Alice Ardelean", record1: "9-2-0", flag1: "ro", fighter2: "Montserrat Ruiz", record2: "11-3-0", flag2: "mx" },
-    { fighter1: "Phil Rowe", record1: "10-4-0", flag1: "us", fighter2: "Seokhyeon Ko", record2: "8-2-0", flag2: "kr" },
-    { fighter1: "Talita Alencar", record1: "8-0-0", flag1: "br", fighter2: "Ariane Carnelossi", record2: "14-3-0", flag2: "br" },
+    {
+      fighter1: "Billy Elekana",
+      record1: "5-1-0",
+      flag1: "us",
+      fighter2: "Kevin Christian",
+      record2: "7-3-0",
+      flag2: "br",
+    },
+    {
+      fighter1: "Timmy Cuamba",
+      record1: "9-2-0",
+      flag1: "us",
+      fighter2: "ChangHo Lee",
+      record2: "8-3-0",
+      flag2: "kr",
+    },
+    {
+      fighter1: "Donte Johnson",
+      record1: "4-0-0",
+      flag1: "us",
+      fighter2: "Sedriques Dumas",
+      record2: "9-1-0",
+      flag2: "us",
+    },
+    {
+      fighter1: "Ketlen Vieira",
+      record1: "14-3-0",
+      flag1: "br",
+      fighter2: "Norma Dumont",
+      record2: "10-2-0",
+      flag2: "br",
+    },
+    {
+      fighter1: "Alice Ardelean",
+      record1: "9-2-0",
+      flag1: "ro",
+      fighter2: "Montserrat Ruiz",
+      record2: "11-3-0",
+      flag2: "mx",
+    },
+    {
+      fighter1: "Phil Rowe",
+      record1: "10-4-0",
+      flag1: "us",
+      fighter2: "Seokhyeon Ko",
+      record2: "8-2-0",
+      flag2: "kr",
+    },
+    {
+      fighter1: "Talita Alencar",
+      record1: "8-0-0",
+      flag1: "br",
+      fighter2: "Ariane Carnelossi",
+      record2: "14-3-0",
+      flag2: "br",
+    },
   ],
 };
 
-// Example stats - expand with real data as you like
+const FALLBACK_SCHEDULE = [
+  {
+    EventId: FALLBACK_EVENT_ID,
+    Name: FALLBACK_EVENT.meta.name,
+    Date: FALLBACK_EVENT.meta.date,
+  },
+];
+
 const STATS = {
-  "Steve Garcia": { country: "United States", height: `6'0"`, weight: "146 lb", reach: "75 in", leg_reach: "41 in", significantStrikes: 3.8, takedownAvg: 0.6, odds: 1.85 },
-  "David Onama": { country: "Uganda", height: `5'11"`, weight: "146 lb", reach: "74 in", leg_reach: "40 in", significantStrikes: 4.2, takedownAvg: 1.4, odds: 2.05 },
+  "Steve Garcia": {
+    country: "United States",
+    height: `6'0"`,
+    weight: "146 lb",
+    reach: "75 in",
+    leg_reach: "41 in",
+    significantStrikes: 3.8,
+    takedownAvg: 0.6,
+    odds: 1.85,
+  },
+  "David Onama": {
+    country: "Uganda",
+    height: `5'11"`,
+    weight: "146 lb",
+    reach: "74 in",
+    leg_reach: "40 in",
+    significantStrikes: 4.2,
+    takedownAvg: 1.4,
+    odds: 2.05,
+  },
+  "Waldo Acosta": {
+    country: "Dominican Republic",
+  },
+  "Ante Delija": {
+    country: "Croatia",
+  },
 };
 
+function resolveFlagCode(value) {
+  if (!value) {
+    return "us";
+  }
+  const str = String(value).trim();
+  if (!str) {
+    return "us";
+  }
+  if (str.length === 2) {
+    return str.toLowerCase();
+  }
+  return str.slice(0, 2).toLowerCase();
+}
+
+function getFlagImage(code, fighterName) {
+  const mediaFlag = FIGHTER_MEDIA[fighterName]?.flag;
+  if (mediaFlag) {
+    return mediaFlag;
+  }
+
+  const normalized = (code || "").toLowerCase();
+  if (normalized && FLAG_IMAGE[normalized]) {
+    return FLAG_IMAGE[normalized];
+  }
+
+  return DEFAULT_FLAG;
+}
+
+function getFighterImage(name, variant = "card") {
+  if (FIGHTER_MEDIA[name]?.[variant]) {
+    return FIGHTER_MEDIA[name][variant];
+  }
+
+  return DEFAULT_CARD_IMAGE;
+}
+
 function formatDiff(a, b) {
-  if (a == null || b == null) return "—";
+  if (a == null || b == null) {
+    return "—";
+  }
+
   const numA = parseFloat(String(a).replace(/[^\d.]/g, "")) || 0;
   const numB = parseFloat(String(b).replace(/[^\d.]/g, "")) || 0;
   const diff = Math.abs((numA - numB).toFixed(1));
-  if (numA === numB) return "0";
+
+  if (numA === numB) {
+    return "0";
+  }
+
   return numA > numB ? `+${diff}` : `-${diff}`;
 }
 
-function FightCard({ fight, glowClass }) {
-  const [showAnalysis, setShowAnalysis] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("Matchup");
+function formatEventDate(value) {
+  if (!value) {
+    return "Date TBA";
+  }
 
-  React.useEffect(() => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Date TBA";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatOptionDate(value) {
+  if (!value) {
+    return "TBA";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "TBA";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function buildPyramidLayout(list = []) {
+  if (!list.length) {
+    return [];
+  }
+
+  const reversed = [...list].reverse();
+  const rows = [];
+  let index = 0;
+  let templateIndex = 0;
+
+  while (index < reversed.length) {
+    const size = PYRAMID_TEMPLATE[templateIndex] || PYRAMID_TEMPLATE[PYRAMID_TEMPLATE.length - 1];
+    rows.push(reversed.slice(index, index + size));
+    index += size;
+    if (templateIndex < PYRAMID_TEMPLATE.length - 1) {
+      templateIndex += 1;
+    }
+  }
+
+  return rows;
+}
+
+function extractEventLocation(details = {}) {
+  const { Venue, Location, Site, Arena, City, State, Country } = details || {};
+  const composedCity = [City, State, Country].filter(Boolean).join(", ");
+  const candidates = [Venue, Location, Site, Arena, composedCity].filter(Boolean);
+  return candidates[0] || "Location TBA";
+}
+
+function FightCard({ fight, accent }) {
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [activeTab, setActiveTab] = useState(ANALYSIS_TABS[0]);
+  const isInteractive = fight.isInteractive;
+
+  useEffect(() => {
     document.body.classList.toggle("modal-open", showAnalysis);
-    // prevent background scroll when modal open
-    document.body.style.overflow = showAnalysis ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    if (showAnalysis) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [showAnalysis]);
 
-  const s1 = STATS[fight.fighter1] || {};
-  const s2 = STATS[fight.fighter2] || {};
+  const fighter1Name = fight.fighter1 || "TBA";
+  const fighter2Name = fight.fighter2 || "TBA";
+  const fighter1Record = fight.record1 || "0-0-0";
+  const fighter2Record = fight.record2 || "0-0-0";
+  const fighter1Flag = fight.flag1 || "us";
+  const fighter2Flag = fight.flag2 || "us";
+
+  const s1 = STATS[fighter1Name] || {};
+  const s2 = STATS[fighter2Name] || {};
+
+  const cardClass = ["fight-card", accent ? `accent-${accent}` : "", isInteractive ? "" : "locked"]
+    .filter(Boolean)
+    .join(" ");
+
+  const openAnalysis = () => {
+    if (!isInteractive) {
+      return;
+    }
+    setActiveTab(ANALYSIS_TABS[0]);
+    setShowAnalysis(true);
+  };
 
   return (
     <>
-      {/* --- FIGHT CARD --- */}
-      <div className={`fight-card ${glowClass}`}>
-        <div className="fighter-info-row">
-          <div className="fighter-side left">
-            <div className="fighter-name-row">
-              <span className="fighter">{fight.fighter1}</span>
-              <ReactCountryFlag
-                countryCode={fight.flag1.toUpperCase()}
-                svg
-                style={{
-                  width: "22px",
-                  height: "15px",
-                  marginLeft: "-5px",
-                  borderRadius: "2px",
-                  boxShadow: "0 0 3px rgba(0,0,0,0.45)",
-                }}
-              />
-            </div>
-            <div className="fighter-record">{fight.record1}</div>
+      <article className={cardClass}>
+        <header className="fight-header">
+          <div className="fighter-block">
+            <span className="fighter-name">{fighter1Name}</span>
+            <span className="fighter-record">{fighter1Record}</span>
           </div>
-
-          <div className="vs-center">VS</div>
-
-          <div className="fighter-side right">
-            <div className="fighter-name-row">
-              <ReactCountryFlag
-                countryCode={fight.flag2.toUpperCase()}
-                svg
-                style={{
-                  width: "22px",
-                  height: "15px",
-                  marginRight: "-5px",
-                  borderRadius: "2px",
-                  boxShadow: "0 0 3px rgba(0,0,0,0.45)",
-                }}
-              />
-              <span className="fighter">{fight.fighter2}</span>
-            </div>
-            <div className="fighter-record">{fight.record2}</div>
+          <div className="matchup-flags">
+            <img src={getFlagImage(fighter1Flag, fighter1Name)} alt={`${fighter1Name} flag`} />
+            <span className="vs-label">VS</span>
+            <img src={getFlagImage(fighter2Flag, fighter2Name)} alt={`${fighter2Name} flag`} />
           </div>
-        </div>
+          <div className="fighter-block align-right">
+            <span className="fighter-name">{fighter2Name}</span>
+            <span className="fighter-record">{fighter2Record}</span>
+          </div>
+        </header>
 
         <div className="torso-row">
           <div className="torso left">
-            <img
-              src={`/assets/fighters/${FIGHTER_IMAGE[fight.fighter1]}`}
-              alt={fight.fighter1}
-              loading="lazy"
-            />
+            <img src={getFighterImage(fighter1Name, "card")} alt={fighter1Name} loading="lazy" />
           </div>
           <div className="torso right">
-            <img
-              src={`/assets/fighters/${FIGHTER_IMAGE[fight.fighter2]}`}
-              alt={fight.fighter2}
-              loading="lazy"
-            />
+            <img src={getFighterImage(fighter2Name, "card")} alt={fighter2Name} loading="lazy" />
           </div>
         </div>
 
-        <button
-          className="analysis-btn under-vs"
-          onClick={() => {
-            setActiveTab("Matchup");
-            setShowAnalysis(true);
-          }}
-        >
-          Comparison
-        </button>
+        <div className="card-footer">
+          <button type="button" className="analysis-btn" onClick={openAnalysis} disabled={!isInteractive}>
+            Detailed Comparison
+          </button>
+          <p className={`prediction ${isInteractive ? "active" : "inactive"}`}>
+            {isInteractive ? "— No Prediction —" : "Analytics coming soon"}
+          </p>
+        </div>
+      </article>
 
-        {/* MODAL (Popup) */}
-        {showAnalysis &&
-          createPortal(<div
-            className="analysis-overlay centered"
-            onClick={() => setShowAnalysis(false)}
-          >
-            <div
-              className="analysis-window modern"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="analysis-header modern-header">
-                {/* Linker Kämpfer */}
-                <div className="fighter-head left">
-                  <img
-                    src={`/assets/fighters/${FIGHTER_IMAGE[fight.fighter1]}`}
-                    alt={fight.fighter1}
-                  />
-                  <div className="fighter-meta">
-                    <strong>{fight.fighter1}</strong>
-                    <div className="small">{fight.record1}</div>
-                    <div className="small">
-                      <ReactCountryFlag
-                        countryCode={fight.flag1.toUpperCase()}
-                        svg
-                        style={{
-                          width: "18px",
-                          height: "12px",
-                          marginRight: 6,
-                        }}
-                      />
-                      {s1.country || "—"}
+      {showAnalysis &&
+        createPortal(
+          <div className="analysis-overlay" onClick={() => setShowAnalysis(false)}>
+            <div className="analysis-window" onClick={(event) => event.stopPropagation()}>
+              <div className="analysis-header">
+                <div className="analysis-athlete">
+                  <img src={getFighterImage(fighter1Name, "full")} alt={fighter1Name} />
+                  <div className="analysis-meta">
+                    <strong>{fighter1Name}</strong>
+                    <span>{fighter1Record}</span>
+                    <div className="analysis-flag">
+                      <img src={getFlagImage(fighter1Flag, fighter1Name)} alt={`${fighter1Name} flag`} />
+                      <span>{s1.country || "—"}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* VS Center */}
-                <div className="fight-vs-center">
-                  <div className="vs-divider"></div>
-                  <span className="vs-text">VS</span>
-                  <div className="vs-divider"></div>
-                </div>
+                <div className="analysis-divider">VS</div>
 
-                {/* Rechter Kämpfer */}
-                <div className="fighter-head right">
-                  <img
-                    src={`/assets/fighters/${FIGHTER_IMAGE[fight.fighter2]}`}
-                    alt={fight.fighter2}
-                  />
-                  <div className="fighter-meta" style={{ textAlign: "right" }}>
-                    <strong>{fight.fighter2}</strong>
-                    <div className="small">{fight.record2}</div>
-                    <div className="small">
-                      {s2.country || "—"}{" "}
-                      <ReactCountryFlag
-                        countryCode={fight.flag2.toUpperCase()}
-                        svg
-                        style={{
-                          width: "18px",
-                          height: "12px",
-                          marginLeft: 6,
-                        }}
-                      />
+                <div className="analysis-athlete align-right">
+                  <img src={getFighterImage(fighter2Name, "full")} alt={fighter2Name} />
+                  <div className="analysis-meta">
+                    <strong>{fighter2Name}</strong>
+                    <span>{fighter2Record}</span>
+                    <div className="analysis-flag">
+                      <img src={getFlagImage(fighter2Flag, fighter2Name)} alt={`${fighter2Name} flag`} />
+                      <span>{s2.country || "—"}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="tabs">
-                {["Matchup", "Result", "Strikes", "Grappling", "Odds"].map(
-                  (tab) => (
-                    <button
-                      key={tab}
-                      className={`tab ${activeTab === tab ? "active" : ""
-                        }`}
-                      onClick={() => setActiveTab(tab)}
-                    >
-                      {tab}
-                    </button>
-                  )
-                )}
+                {ANALYSIS_TABS.map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    className={`tab ${activeTab === tab ? "active" : ""}`}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
 
-              <div className="analysis-body modern-body">
-                {activeTab === "Matchup" && (
+              <div className="analysis-body">
+                {activeTab === "Matchup" ? (
                   <div className="stats-grid">
-                    <div className="stat-col left-col">
+                    <div className="stat-col">
                       <div className="stat-item">
-                        <div className="label">Height</div>
-                        <div className="value">{s1.height || "—"}</div>
+                        <span className="label">Height</span>
+                        <span className="value">{s1.height || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Weight</div>
-                        <div className="value">{s1.weight || "—"}</div>
+                        <span className="label">Weight</span>
+                        <span className="value">{s1.weight || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Reach</div>
-                        <div className="value">{s1.reach || "—"}</div>
+                        <span className="label">Reach</span>
+                        <span className="value">{s1.reach || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Leg Reach</div>
-                        <div className="value">{s1.leg_reach || "—"}</div>
+                        <span className="label">Leg Reach</span>
+                        <span className="value">{s1.leg_reach || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Sig. Strikes</div>
-                        <div className="value">
-                          {s1.significantStrikes ?? "—"}
-                        </div>
+                        <span className="label">Sig. Strikes</span>
+                        <span className="value">{s1.significantStrikes ?? "—"}</span>
                       </div>
                     </div>
 
-                    <div className="stat-col diff-col">
-                      <div className="diff-item">
-                        {formatDiff(s1.height, s2.height)}
-                      </div>
-                      <div className="diff-item">
-                        {formatDiff(s1.weight, s2.weight)}
-                      </div>
-                      <div className="diff-item">
-                        {formatDiff(s1.reach, s2.reach)}
-                      </div>
-                      <div className="diff-item">
-                        {formatDiff(s1.leg_reach, s2.leg_reach)}
-                      </div>
-                      <div className="diff-item">
-                        {formatDiff(
-                          s1.significantStrikes,
-                          s2.significantStrikes
-                        )}
-                      </div>
+                    <div className="stat-col diff">
+                      <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
+                      <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
+                      <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
+                      <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
+                      <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
                     </div>
 
-                    <div className="stat-col right-col">
+                    <div className="stat-col">
                       <div className="stat-item">
-                        <div className="label">Height</div>
-                        <div className="value">{s2.height || "—"}</div>
+                        <span className="label">Height</span>
+                        <span className="value">{s2.height || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Weight</div>
-                        <div className="value">{s2.weight || "—"}</div>
+                        <span className="label">Weight</span>
+                        <span className="value">{s2.weight || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Reach</div>
-                        <div className="value">{s2.reach || "—"}</div>
+                        <span className="label">Reach</span>
+                        <span className="value">{s2.reach || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Leg Reach</div>
-                        <div className="value">{s2.leg_reach || "—"}</div>
+                        <span className="label">Leg Reach</span>
+                        <span className="value">{s2.leg_reach || "—"}</span>
                       </div>
                       <div className="stat-item">
-                        <div className="label">Sig. Strikes</div>
-                        <div className="value">
-                          {s2.significantStrikes ?? "—"}
-                        </div>
+                        <span className="label">Sig. Strikes</span>
+                        <span className="value">{s2.significantStrikes ?? "—"}</span>
                       </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className="placeholder-panel">
+                    <h3>{activeTab} insights</h3>
+                    <p>Advanced {activeTab.toLowerCase()} analytics will unlock soon for VIP members.</p>
                   </div>
                 )}
               </div>
 
               <div className="analysis-footer">
-                <button
-                  className="close-analysis-btn"
-                  onClick={() => setShowAnalysis(false)}
-                >
+                <button type="button" className="close-analysis-btn" onClick={() => setShowAnalysis(false)}>
                   Close
                 </button>
               </div>
             </div>
           </div>,
-            document.body
-          )}
-
-        <p className="prediction">— No Prediction —</p>
-      </div>
-
+          document.body,
+        )}
     </>
   );
 }
 
-// === EVENT FETCHING & STATE MANAGEMENT ===
-import { fetchSchedule, fetchEvent, fetchFighters } from "../api/sportsdata";
-
-function UFCPage() {
-  const [showStreams, setShowStreams] = useState(false);
-  const [showBookmakers, setShowBookmakers] = useState(false);
-  const [fightersCache, setFightersCache] = useState([]);
-  const [selectedEvent, setSelectedEvent] = useState(null);
+function UFCPage({ onOpenStreams, onOpenBookmakers }) {
   const [events, setEvents] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
+  const [eventMeta, setEventMeta] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const fightersCache = useRef([]);
+  const loadingStartRef = useRef(null);
 
-  // 🗓 Lade Schedule bei Start
-  React.useEffect(() => {
-    async function loadSchedule() {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSchedule = async () => {
       try {
-        setIsLoading(true);
         const schedule = await fetchSchedule();
-        console.log("✅ Loaded Schedule:", schedule);
-
-        // Nur geplante UFC-Events (z. B. "Scheduled")
-        const upcomingEvents = schedule.map((e) => ({
-          EventId: e.EventId,
-          Name: e.Name,
-          Date: e.Date || e.Day || e.DateTime,
-        }));
-
-        setEvents(upcomingEvents);
-      } catch (err) {
-        console.error("Schedule Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadSchedule();
-  }, []);
-
-  // 🥋 Wenn Event gewählt → Details laden
-  React.useEffect(() => {
-    if (!selectedEvent) return;
-
-    async function loadEventDetails() {
-      try {
-        setIsLoading(true);
-
-        // 1️⃣ Event-Details + Fighterdaten laden (Cache beachten)
-        let fighters = fightersCache;
-        if (!fighters.length) {
-          console.log("🧠 Loading fighters from API...");
-          fighters = await fetchFighters();
-          setFightersCache(fighters);
-        } else {
-          console.log("⚡ Using cached fighters:", fighters.length);
-        }
-
-        const details = await fetchEvent(selectedEvent);
-        console.log("✅ Event details loaded:", details);
-
-        if (!details || !Array.isArray(details.Fights)) {
-          console.warn("⚠️ No fights found for event:", selectedEvent);
-          setCurrentEvent({ mainCard: [], prelims: [] });
+        if (!isMounted) {
           return;
         }
 
-        // 2️⃣ Fighterdaten mergen
-        const enrichedFights = details.Fights.map((fight) => {
-          const fightersInFight = (fight.Fighters || []).map((f) => {
-            const full = fighters.find((x) => x.FighterId === f.FighterId);
-            return {
-              ...f,
-              ...full,
-              flag:
-                full?.CountryCode?.toLowerCase() ||
-                full?.Country?.slice(0, 2).toLowerCase() ||
-                "us",
-            };
-          });
-          return { ...fight, Fighters: fightersInFight };
-        }).filter((f) => f.Fighters.length >= 2);
+        const source = Array.isArray(schedule?.Events)
+          ? schedule.Events
+          : Array.isArray(schedule)
+          ? schedule
+          : [];
 
-        // 3️⃣ Nach Order sortieren
-        const sortedFights = [...details.Fights].sort(
-          (a, b) => (a.Order || 0) - (b.Order || 0)
-        );
-
-        // 4️⃣ Aufteilen in MainCard & Prelims
-        let prelims = sortedFights.filter((f) =>
-          f.CardSegment?.toLowerCase().includes("prelim")
-        );
-        let mainCard = sortedFights.filter((f) =>
-          f.CardSegment?.toLowerCase().includes("main")
-        );
-
-        // 5️⃣ Fallback, wenn CardSegment fehlt
-        if (prelims.length === 0 && mainCard.length === 0) {
-          const midpoint = Math.floor(sortedFights.length * 0.5);
-          prelims = sortedFights.slice(0, midpoint);
-          mainCard = sortedFights.slice(midpoint);
+        if (!source.length) {
+          setEvents(FALLBACK_SCHEDULE);
+          return;
         }
 
-        // 6️⃣ Titelkämpfe ganz oben der Main Card
-        mainCard.sort((a, b) => {
-          const aTitle =
-            a.WeightClass?.toLowerCase().includes("champion") ||
-            a.Description?.toLowerCase().includes("title");
-          const bTitle =
-            b.WeightClass?.toLowerCase().includes("champion") ||
-            b.Description?.toLowerCase().includes("title");
-          if (aTitle && !bTitle) return -1;
-          if (!aTitle && bTitle) return 1;
-          return (a.Order || 0) - (b.Order || 0);
+        const map = new Map();
+        source.forEach((item) => {
+          if (!item?.EventId) {
+            return;
+          }
+          const existing = map.get(item.EventId);
+          if (!existing || new Date(item.Date || item.Day || item.DateTime) < new Date(existing.Date)) {
+            map.set(item.EventId, {
+              EventId: item.EventId,
+              Name: item.Name,
+              Date: item.Date || item.Day || item.DateTime,
+            });
+          }
         });
 
-        // 7️⃣ Normalisieren für UI
-        function toFightCard(fight) {
+        const upcoming = Array.from(map.values()).sort((a, b) => {
+          const dateA = new Date(a.Date || 0).getTime();
+          const dateB = new Date(b.Date || 0).getTime();
+          return dateA - dateB;
+        });
+
+        setEvents(upcoming.length ? upcoming : FALLBACK_SCHEDULE);
+      } catch (error) {
+        console.error("Schedule Error:", error);
+        if (isMounted) {
+          setEvents(FALLBACK_SCHEDULE);
+        }
+      }
+    };
+
+    loadSchedule();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedEvent && events.length) {
+      setSelectedEvent(String(events[0].EventId));
+    }
+  }, [events, selectedEvent]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const finishLoading = () => {
+      const start = loadingStartRef.current;
+      if (!start) {
+        setIsLoading(false);
+        return;
+      }
+      const elapsed = Date.now() - start;
+      if (elapsed < MIN_LOADING_MS) {
+        setTimeout(() => {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        }, MIN_LOADING_MS - elapsed);
+      } else {
+        setIsLoading(false);
+      }
+    };
+
+    const loadEventDetails = async () => {
+      if (!selectedEvent) {
+        setCurrentEvent(null);
+        setEventMeta(null);
+        return;
+      }
+
+      loadingStartRef.current = Date.now();
+      setIsLoading(true);
+
+      if (selectedEvent === FALLBACK_EVENT_ID) {
+        const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => ({
+          ...fight,
+          cardType: "main",
+          isInteractive: index < FEATURED_CARDS,
+        }));
+        const featuredPrelims = FALLBACK_EVENT.prelims.map((fight) => ({
+          ...fight,
+          cardType: "prelim",
+          isInteractive: false,
+        }));
+        setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
+        setEventMeta(FALLBACK_EVENT.meta);
+        finishLoading();
+        return;
+      }
+
+      try {
+        let fighters = fightersCache.current;
+        if (!fighters.length) {
+          fighters = await fetchFighters();
+          if (!isMounted) {
+            return;
+          }
+          fightersCache.current = fighters;
+        }
+
+        const details = await fetchEvent(selectedEvent);
+        if (!isMounted) {
+          return;
+        }
+
+        if (!details || !Array.isArray(details.Fights)) {
+          setCurrentEvent({ mainCard: [], prelims: [] });
+          setEventMeta({
+            name: details?.Name || "Event",
+            date: details?.DateTime || "",
+            location: extractEventLocation(details),
+          });
+          finishLoading();
+          return;
+        }
+
+        const enrichedFights = details.Fights.map((fight) => {
+          const fightersInFight = (fight.Fighters || []).map((entry) => {
+            const full = fighters.find((athlete) => athlete.FighterId === entry.FighterId);
+            const name = full?.Name || [full?.FirstName, full?.LastName].filter(Boolean).join(" ") || entry.Name;
+            return {
+              ...entry,
+              ...full,
+              resolvedName: name,
+              flag: (full?.CountryCode || full?.Country || "us").toLowerCase(),
+            };
+          });
+
+          return { ...fight, Fighters: fightersInFight };
+        }).filter((fight) => (fight.Fighters || []).length >= 2);
+
+        enrichedFights.sort((a, b) => (a.Order || 0) - (b.Order || 0));
+
+        let prelims = enrichedFights.filter((fight) => fight.CardSegment?.toLowerCase().includes("prelim"));
+        let mainCard = enrichedFights.filter((fight) => fight.CardSegment?.toLowerCase().includes("main"));
+
+        if (!prelims.length && !mainCard.length) {
+          const midpoint = Math.floor(enrichedFights.length / 2);
+          prelims = enrichedFights.slice(0, midpoint);
+          mainCard = enrichedFights.slice(midpoint);
+        }
+
+        const toFightCard = (fight, index, cardType) => {
           const [f1, f2] = fight.Fighters;
-
-          const name1 =
-            f1?.Name || [f1?.FirstName, f1?.LastName].filter(Boolean).join(" ") || "TBA";
-          const name2 =
-            f2?.Name || [f2?.FirstName, f2?.LastName].filter(Boolean).join(" ") || "TBA";
-
-          const record1 =
-            f1?.Record || `${f1?.Wins ?? 0}-${f1?.Losses ?? 0}-${f1?.Draws ?? 0}`;
-          const record2 =
-            f2?.Record || `${f2?.Wins ?? 0}-${f2?.Losses ?? 0}-${f2?.Draws ?? 0}`;
-
-          const flag1 =
-            f1?.flag || f1?.CountryCode?.toLowerCase() || f1?.Country?.slice(0, 2).toLowerCase() || "us";
-          const flag2 =
-            f2?.flag || f2?.CountryCode?.toLowerCase() || f2?.Country?.slice(0, 2).toLowerCase() || "us";
+          const name1 = f1?.resolvedName || "TBA";
+          const name2 = f2?.resolvedName || "TBA";
+          const record1 = f1?.Record || `${f1?.Wins ?? 0}-${f1?.Losses ?? 0}-${f1?.Draws ?? 0}`;
+          const record2 = f2?.Record || `${f2?.Wins ?? 0}-${f2?.Losses ?? 0}-${f2?.Draws ?? 0}`;
 
           return {
             fighter1: name1,
-            record1,
-            flag1,
             fighter2: name2,
+            record1,
             record2,
-            flag2,
-            odds1: f1?.Moneyline ?? null,
-            odds2: f2?.Moneyline ?? null,
+            flag1: resolveFlagCode(f1?.flag || f1?.CountryCode || f1?.Country),
+            flag2: resolveFlagCode(f2?.flag || f2?.CountryCode || f2?.Country),
+            cardType,
+            isInteractive: cardType === "main" && index < FEATURED_CARDS,
           };
-        }
-
-        const formattedEvent = {
-          mainCard: mainCard.map(toFightCard),
-          prelims: prelims.map(toFightCard),
         };
 
-        console.log("✅ Parsed Event:", formattedEvent);
-        setCurrentEvent(formattedEvent);
-      } catch (err) {
-        console.error("❌ Event Error:", err);
+        const formattedMain = mainCard.map((fight, index) => toFightCard(fight, index, "main"));
+        const formattedPrelims = prelims.map((fight, index) => toFightCard(fight, index, "prelim"));
+
+        setCurrentEvent({ mainCard: formattedMain, prelims: formattedPrelims });
+        setEventMeta({
+          name: details?.Name || details?.ShortName || "UFC Event",
+          date: details?.DateTime || details?.StartTime || details?.Date,
+          location: extractEventLocation(details),
+        });
+      } catch (error) {
+        console.error("Event Error:", error);
+        if (isMounted) {
+          const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => ({
+            ...fight,
+            cardType: "main",
+            isInteractive: index < FEATURED_CARDS,
+          }));
+          const featuredPrelims = FALLBACK_EVENT.prelims.map((fight) => ({
+            ...fight,
+            cardType: "prelim",
+            isInteractive: false,
+          }));
+          setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
+          setEventMeta(FALLBACK_EVENT.meta);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          finishLoading();
+        }
       }
-    }
+    };
 
     loadEventDetails();
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedEvent]);
 
-
-  // Helferfunktion zum Normalisieren der Daten
-  function formatFight(fight) {
-    const f1 = fight.Fighters?.[0] || {};
-    const f2 = fight.Fighters?.[1] || {};
-
-    return {
-      fighter1: f1.Name || "TBA",
-      fighter2: f2.Name || "TBA",
-      record1: f1.Record || "",
-      record2: f2.Record || "",
-      odds1: f1.Moneyline || null,
-      odds2: f2.Moneyline || null,
-      reach1: f1.Reach || "—",
-      reach2: f2.Reach || "—",
-      height1: f1.Height || "—",
-      height2: f2.Height || "—",
-    };
-  }
+  const mainRows = useMemo(() => buildPyramidLayout(currentEvent?.mainCard || []), [currentEvent]);
+  const prelimRows = useMemo(() => buildPyramidLayout(currentEvent?.prelims || []), [currentEvent]);
 
   return (
-    <div className="page">
-      <main className="event-container">
-
-        {/* UFC Logo */}
-        <div className="ufc-logo-wrapper line-overlay">
-          <img
-            src="/assets/ufc-predictor-v1.png"
-            alt="UFC Predictor v1"
-            className="ufc-predictor-logo"
-          />
-        </div>
-
-        {/* === LEFT SIDE BUTTONS (Glass HUD + Tooltips) === */}
-        <div className="event-buttons-left">
-          {/* STREAMS BUTTON */}
-          <div className="hud-btn-wrapper">
-            <button className="hud-btn" onClick={() => setShowStreams(true)}>
-              <img src="/assets/stream.png" alt="Streams" />
-            </button>
-            <span className="hud-tooltip">Watch Streams</span>
-          </div>
-
-          {/* BOOKMAKERS BUTTON */}
-          <div className="hud-btn-wrapper">
-            <button className="hud-btn" onClick={() => setShowBookmakers(true)}>
-              <img src="/assets/dice.png" alt="Bookmakers" />
-            </button>
-            <span className="hud-tooltip">Bookmakers</span>
+    <div className="ufc-page">
+      <section className="ufc-hero" id="hero">
+        <div className="hero-copy">
+          <span className="hero-kicker">Next level fight analytics</span>
+          <h1>UFC Predictor</h1>
+          <p>
+            Track every matchup, understand stylistic edges and prepare your wagers with a clear, professional-grade
+            layout engineered for analysts.
+          </p>
+          <div className="hero-actions">
+            <button type="button" onClick={onOpenStreams}>Live Streams</button>
+            <button type="button" onClick={onOpenBookmakers}>Top Bookmakers</button>
           </div>
         </div>
+        <div className="hero-summary">
+          <div className="summary-card">
+            <span className="summary-title">Platform Vision</span>
+            <p>
+              Build one home for combat, traditional and esports intelligence. Football, basketball, boxing and more
+              join the line-up soon.
+            </p>
+          </div>
+          <div className="summary-card">
+            <span className="summary-title">AI Roadmap</span>
+            <p>
+              Automated tape study, AI pick generation and opponent pattern detection are currently in private testing.
+            </p>
+          </div>
+        </div>
+      </section>
 
-        {/* === POPUPS (Portaled to body for stability) === */}
-        {showStreams &&
-          createPortal(<div className="popup-overlay" onClick={() => setShowStreams(false)}>
-            <div className="popup-box glass-hud-popup" onClick={(e) => e.stopPropagation()}>
-              <h3>Live Streams</h3>
-              <p>Watch upcoming UFC events live from these sources:</p>
-              <ul className="popup-links">
-                <li><a href="#" target="_blank" rel="noreferrer">Stream 1</a></li>
-                <li><a href="#" target="_blank" rel="noreferrer">Stream 2</a></li>
-                <li><a href="#" target="_blank" rel="noreferrer">Stream 3</a></li>
-                <li><a href="#" target="_blank" rel="noreferrer">Stream 4</a></li>
-                <li><a href="#" target="_blank" rel="noreferrer">Stream 5</a></li>
-              </ul>
-              <button className="close-popup" onClick={() => setShowStreams(false)}>Close</button>
+      <section className="event-shell" id="event-shell">
+        <header className="event-toolbar">
+          <div className="select-group">
+            <label htmlFor="event-select">Upcoming Event</label>
+            <div className="custom-dropdown">
+              <select
+                id="event-select"
+                value={selectedEvent || ""}
+                onChange={(event) => setSelectedEvent(event.target.value || null)}
+              >
+                {events.map((event) => (
+                  <option key={event.EventId} value={String(event.EventId)}>
+                    {event.Name} — {formatOptionDate(event.Date)}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>,
-            document.body
-          )}
-
-        {showBookmakers &&
-          createPortal(<div className="popup-overlay" onClick={() => setShowBookmakers(false)}>
-            <div className="popup-box glass-hud-popup" onClick={(e) => e.stopPropagation()}>
-              <h3>Top Bookmakers (UFC Odds)</h3>
-              <p>Compare odds for UFC events – best odds highlighted in gold.</p>
-              <ul className="bookmaker-list">
-                <li className="top-bookmaker">
-                  🥇 <a href="https://stake.com" target="_blank" rel="noreferrer">Stake.com</a> — 1.95x
-                </li>
-                <li>
-                  🥈 <a href="https://roobet.com" target="_blank" rel="noreferrer">Roobet</a> — 1.90x
-                </li>
-                <li>
-                  🥉 <a href="https://1xbet.com" target="_blank" rel="noreferrer">Duel</a> — 1.88x
-                </li>
-                <li>
-                  <a href="https://bet365.com" target="_blank" rel="noreferrer">Duelbits</a> — 1.86x
-                </li>
-                <li>
-                  <a href="https://pinnacle.com" target="_blank" rel="noreferrer">Fortunejack</a> — 1.84x
-                </li>
-              </ul>
-              <button className="close-popup" onClick={() => setShowBookmakers(false)}>Close</button>
-            </div>
-          </div>,
-            document.body
-          )}
-
-        <div className="event-selector-wrapper">
-          <div className="event-dropdown custom-dropdown">
-            <select
-              value={selectedEvent?.toString() || ""}
-              onChange={(e) => setSelectedEvent(Number(e.target.value))}
-            >
-              <option value="">Select Event</option>
-              {events.map((ev) => (
-                <option key={ev.EventId} value={ev.EventId}>
-                  {ev.Name} — {new Date(ev.Date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </option>
-              ))}
-            </select>
-            <span className="dropdown-arrow">▼</span>
           </div>
-        </div>
+          <div className="event-actions">
+            <button type="button" onClick={() => document.getElementById("main-card")?.scrollIntoView({ behavior: "smooth" })}>
+              Main Card
+            </button>
+            <button type="button" onClick={() => document.getElementById("prelims")?.scrollIntoView({ behavior: "smooth" })}>
+              Prelims
+            </button>
+          </div>
+        </header>
 
-        {isLoading && (
-          <div className="hud-loader-overlay">
-            <div className="hud-loader-glass">
-              <div className="hud-loader-shine"></div>
-              <div className="hud-loader-content">
-                <h3 className="hud-loader-title">Loading Event Data...</h3>
-                <div className="hud-loader-bar">
-                  <div className="hud-loader-bar-fill"></div>
-                </div>
-              </div>
+        {eventMeta && (
+          <div className="event-meta" id="analytics">
+            <div>
+              <span className="meta-label">Event</span>
+              <strong>{eventMeta.name}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Date</span>
+              <strong>{formatEventDate(eventMeta.date)}</strong>
+            </div>
+            <div>
+              <span className="meta-label">Location</span>
+              <strong>{eventMeta.location}</strong>
             </div>
           </div>
         )}
+
+        {isLoading && (
+          <div className="loading-banner">
+            <div className="loading-pulse" />
+            <span>Updating fight card…</span>
+          </div>
+        )}
+
         {currentEvent ? (
           <>
-            {/* === MAIN CARD === */}
-            <div className="belt-wrapper">
-              <div className="sideplate left"></div>
-              <div className="belt-grip left"></div>
-              <div className="belt-banner main"><span>Main Card</span></div>
-              <div className="belt-grip right"></div>
-              <div className="sideplate right"></div>
-            </div>
+            <section className="card-section" id="main-card">
+              <header className="section-header">
+                <h2>Main Card</h2>
+                <p>Headline matchups presented in a centered pyramid layout.</p>
+              </header>
+              <div className="fight-pyramid">
+                {mainRows.map((row, rowIndex) => (
+                  <div className="fight-row" key={`main-row-${rowIndex}`}>
+                    {row.map((fight, index) => (
+                      <FightCard fight={fight} accent="main" key={`main-${rowIndex}-${index}`} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
 
-            <div className="fight-grid pyramid">
-              {currentEvent.mainCard.map((fight, i) => (
-                <FightCard fight={fight} glowClass="gold-glow" key={`m-${i}`} />
-              ))}
-            </div>
-
-            {/* === PRELIMS === */}
             {currentEvent.prelims?.length > 0 && (
-              <>
-                <div className="belt-banner prelims"><span>Prelims</span></div>
-                <div className="fight-grid pyramid">
-                  {currentEvent.prelims.map((fight, i) => (
-                    <FightCard fight={fight} glowClass="blue-glow" key={`p-${i}`} />
+              <section className="card-section" id="prelims">
+                <header className="section-header">
+                  <h2>Prelims</h2>
+                  <p>Prospects and stylistic tests ahead of the marquee attractions.</p>
+                </header>
+                <div className="fight-pyramid">
+                  {prelimRows.map((row, rowIndex) => (
+                    <div className="fight-row" key={`prelim-row-${rowIndex}`}>
+                      {row.map((fight, index) => (
+                        <FightCard fight={fight} accent="prelim" key={`prelim-${rowIndex}-${index}`} />
+                      ))}
+                    </div>
                   ))}
                 </div>
-              </>
+              </section>
             )}
           </>
         ) : (
           <div className="no-event-selected">
-            <p>⚠️</p>
+            <h3>Select an event</h3>
+            <p>The fight grid will populate automatically with the next card.</p>
           </div>
         )}
-        <button className="big-generate-btn">Generate All</button>
-      </main>
+      </section>
     </div>
   );
 }
