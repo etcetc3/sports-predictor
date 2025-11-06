@@ -83,7 +83,8 @@ textarea {
 }
 
 .nav-primary a,
-.nav-primary button {
+.nav-primary button,
+.nav-link {
   background: none;
   border: none;
   color: var(--color-muted);
@@ -96,7 +97,12 @@ textarea {
 }
 
 .nav-primary a:hover,
-.nav-primary button:hover {
+.nav-primary button:hover,
+.nav-link:hover {
+  color: #f6f7fb;
+}
+
+.nav-link.active {
   color: #f6f7fb;
 }
 
@@ -343,16 +349,21 @@ textarea {
   gap: 1.3rem;
 }
 
-.footer-links-inline a {
+.footer-links-inline a,
+.footer-links-inline button {
   color: inherit;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.8rem;
   text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
   transition: color var(--transition-base);
 }
 
-.footer-links-inline a:hover {
+.footer-links-inline a:hover,
+.footer-links-inline button:hover {
   color: var(--color-highlight);
 }
 
