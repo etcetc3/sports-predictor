@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import HomePage from "../src/components/HomePage.js";
-import UFCPage from "../src/components/UFCPage.js";
+import HomePage from "./components/HomePage.js";
+import UFCPage from "./components/UFCPage.js";
 import "./App.css";
 
 const SPORTS_GROUPS = [
@@ -49,12 +49,19 @@ const SPORTS_GROUPS = [
   },
 ];
 
+const VIEW_LABELS = {
+  home: "Predictor Labs Home",
+  ufc: "UFC Predictor",
+};
+
 function App() {
   const [showStreams, setShowStreams] = useState(false);
   const [showBookmakers, setShowBookmakers] = useState(false);
   const [showVip, setShowVip] = useState(false);
   const [vipError, setVipError] = useState("");
   const [sportsOpen, setSportsOpen] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionTarget, setTransitionTarget] = useState(null);
   const resolveViewFromLocation = () => {
     if (typeof window === "undefined") {
       return "home";
@@ -65,10 +72,33 @@ function App() {
 
   const [activeView, setActiveView] = useState(resolveViewFromLocation);
   const [pendingSection, setPendingSection] = useState(null);
+  const activeViewRef = useRef(activeView);
+  const transitionTimer = useRef(null);
+  const sportsMenuRef = useRef(null);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   const closeSportsMenu = () => setSportsOpen(false);
+
+  const beginViewTransition = (view) => {
+    if (transitionTimer.current) {
+      clearTimeout(transitionTimer.current);
+      transitionTimer.current = null;
+    }
+
+    if (view !== activeViewRef.current) {
+      setTransitionTarget(view);
+      setIsTransitioning(true);
+      transitionTimer.current = setTimeout(() => {
+        setIsTransitioning(false);
+        setTransitionTarget(null);
+        transitionTimer.current = null;
+      }, 520);
+    } else {
+      setTransitionTarget(null);
+      setIsTransitioning(false);
+    }
+  };
 
   const navigateToView = (view) => {
     if (typeof window !== "undefined") {
@@ -79,7 +109,9 @@ function App() {
       }
     }
 
+    beginViewTransition(view);
     setActiveView(view);
+    activeViewRef.current = view;
   };
 
   const requestScroll = (view, sectionId) => {
@@ -95,13 +127,43 @@ function App() {
 
     const handlePopState = () => {
       const nextView = resolveViewFromLocation();
+      beginViewTransition(nextView);
       setActiveView(nextView);
+      activeViewRef.current = nextView;
       setPendingSection(null);
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (!sportsOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setSportsOpen(false);
+      }
+    };
+
+    const handleClickAway = (event) => {
+      if (sportsMenuRef.current && !sportsMenuRef.current.contains(event.target)) {
+        setSportsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickAway);
+    document.addEventListener("touchstart", handleClickAway);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickAway);
+      document.removeEventListener("touchstart", handleClickAway);
+    };
+  }, [sportsOpen]);
 
   useEffect(() => {
     if (!pendingSection) {
@@ -131,6 +193,18 @@ function App() {
     setVipError("Data incorrect. Please contact support.");
   };
 
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimer.current) {
+        clearTimeout(transitionTimer.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="app-shell">
       <nav className="site-nav">
@@ -156,13 +230,27 @@ function App() {
             </button>
             <div
               className={`nav-item has-dropdown ${sportsOpen ? "open" : ""}`}
+              ref={sportsMenuRef}
               onMouseEnter={() => setSportsOpen(true)}
               onMouseLeave={() => setSportsOpen(false)}
+              onFocusCapture={() => setSportsOpen(true)}
+              onBlurCapture={(event) => {
+                if (!sportsMenuRef.current?.contains(event.relatedTarget)) {
+                  setSportsOpen(false);
+                }
+              }}
             >
-              <button type="button" onClick={() => setSportsOpen((value) => !value)}>
+              <button
+                type="button"
+                className={`nav-link nav-link--trigger${sportsOpen ? " active" : ""}`}
+                aria-haspopup="true"
+                aria-expanded={sportsOpen}
+                aria-controls="nav-sports-menu"
+                onClick={() => setSportsOpen((value) => !value)}
+              >
                 Sports
               </button>
-              <div className="dropdown-panel">
+              <div className="dropdown-panel" id="nav-sports-menu" role="menu">
                 {SPORTS_GROUPS.map((group) => (
                   <div className="dropdown-group" key={group.label}>
                     <span className="group-title">{group.label}</span>
@@ -172,6 +260,7 @@ function App() {
                           {item.status === "active" ? (
                             <button
                               type="button"
+                              role="menuitem"
                               onClick={() => {
                                 if (item.action === "hero") {
                                   requestScroll("ufc", "hero");
@@ -181,7 +270,7 @@ function App() {
                               {item.label}
                             </button>
                           ) : (
-                            <span className="soon-item">
+                            <span className="soon-item" role="menuitem" aria-disabled="true">
                               {item.label}
                               <small>Soon</small>
                             </span>
@@ -195,10 +284,15 @@ function App() {
             </div>
             <button
               type="button"
-              className={activeView === "ufc" ? "nav-link active" : "nav-link"}
+              className={`${activeView === "ufc" ? "nav-link active" : "nav-link"} nav-link--ufc`}
               onClick={() => requestScroll("ufc", "hero")}
+              aria-label="UFC Predictor — new"
             >
-              UFC Predictor
+              <span className="nav-link-label">UFC Predictor</span>
+              <span className="nav-new-chip" aria-hidden="true">
+                <span className="nav-new-chip__dot" />
+                <span className="nav-new-chip__text">New</span>
+              </span>
             </button>
             <button
               type="button"
@@ -285,6 +379,21 @@ function App() {
           Predictions are for entertainment only. No guarantees are implied, wagering is 18+ and please bet responsibly.
         </p>
       </footer>
+
+      {isTransitioning && (
+        <div className="view-transition" role="status" aria-live="polite">
+          <div className="view-transition__backdrop" />
+          <div className="view-transition__content">
+            <div className="view-transition__spinner">
+              <span className="ring" />
+              <span className="ring" />
+            </div>
+            <span className="view-transition__label">
+              Loading {VIEW_LABELS[transitionTarget ?? activeView]}
+            </span>
+          </div>
+        </div>
+      )}
 
       {showStreams &&
         createPortal(
