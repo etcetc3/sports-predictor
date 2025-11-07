@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import UFCPage from "./UFCPage";
+import HomePage from "./components/HomePage.js";
+import UFCPage from "./components/UFCPage.js";
 import "./App.css";
 
 const SPORTS_GROUPS = [
@@ -48,56 +49,208 @@ const SPORTS_GROUPS = [
   },
 ];
 
+const VIEW_LABELS = {
+  home: "Predictor Labs Home",
+  ufc: "UFC Predictor",
+};
+
 function App() {
   const [showStreams, setShowStreams] = useState(false);
   const [showBookmakers, setShowBookmakers] = useState(false);
   const [showVip, setShowVip] = useState(false);
   const [vipError, setVipError] = useState("");
   const [sportsOpen, setSportsOpen] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionTarget, setTransitionTarget] = useState(null);
+  const resolveViewFromLocation = () => {
+    if (typeof window === "undefined") {
+      return "home";
+    }
+
+    return window.location.pathname.startsWith("/ufc") ? "ufc" : "home";
+  };
+
+  const [activeView, setActiveView] = useState(resolveViewFromLocation);
+  const [pendingSection, setPendingSection] = useState(null);
+  const activeViewRef = useRef(activeView);
+  const transitionTimer = useRef(null);
+  const sportsMenuRef = useRef(null);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-      setSportsOpen(false);
+  const closeSportsMenu = () => setSportsOpen(false);
+
+  const beginViewTransition = (view) => {
+    if (transitionTimer.current) {
+      clearTimeout(transitionTimer.current);
+      transitionTimer.current = null;
+    }
+
+    if (view !== activeViewRef.current) {
+      setTransitionTarget(view);
+      setIsTransitioning(true);
+      transitionTimer.current = setTimeout(() => {
+        setIsTransitioning(false);
+        setTransitionTarget(null);
+        transitionTimer.current = null;
+      }, 520);
+    } else {
+      setTransitionTarget(null);
+      setIsTransitioning(false);
     }
   };
+
+  const navigateToView = (view) => {
+    if (typeof window !== "undefined") {
+      const targetPath = view === "ufc" ? "/ufcpredictor" : "/";
+
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({}, "", targetPath);
+      }
+    }
+
+    beginViewTransition(view);
+    setActiveView(view);
+    activeViewRef.current = view;
+  };
+
+  const requestScroll = (view, sectionId) => {
+    navigateToView(view);
+    setPendingSection(sectionId || null);
+    closeSportsMenu();
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handlePopState = () => {
+      const nextView = resolveViewFromLocation();
+      beginViewTransition(nextView);
+      setActiveView(nextView);
+      activeViewRef.current = nextView;
+      setPendingSection(null);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!sportsOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setSportsOpen(false);
+      }
+    };
+
+    const handleClickAway = (event) => {
+      if (sportsMenuRef.current && !sportsMenuRef.current.contains(event.target)) {
+        setSportsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickAway);
+    document.addEventListener("touchstart", handleClickAway);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickAway);
+      document.removeEventListener("touchstart", handleClickAway);
+    };
+  }, [sportsOpen]);
+
+  useEffect(() => {
+    if (!pendingSection) {
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+
+    const scrollToPendingSection = () => {
+      const element = document.getElementById(pendingSection);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+        setPendingSection(null);
+      }
+    };
+
+    // Attempt immediately after render and retry shortly after if needed.
+    scrollToPendingSection();
+    const retry = setTimeout(scrollToPendingSection, 120);
+
+    return () => clearTimeout(retry);
+  }, [activeView, pendingSection]);
 
   const handleVipSubmit = (event) => {
     event.preventDefault();
     setVipError("Data incorrect. Please contact support.");
   };
 
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimer.current) {
+        clearTimeout(transitionTimer.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="app-shell">
       <nav className="site-nav">
         <div className="nav-inner">
-          <a className="brand" href="#hero" onClick={(event) => { event.preventDefault(); scrollToSection("hero"); }}>
+          <a
+            className="brand"
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              requestScroll("home", "home");
+            }}
+          >
             <span className="brand-title">Predictor Labs</span>
             <span className="brand-sub">Intelligence for every fight night</span>
           </a>
-
           <div className="nav-primary">
-            <a
-              href="#hero"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("hero");
-              }}
+            <button
+              type="button"
+              onClick={() => requestScroll("home", "home")}
+              className={activeView === "home" ? "nav-link active" : "nav-link"}
             >
               Home
-            </a>
+            </button>
             <div
               className={`nav-item has-dropdown ${sportsOpen ? "open" : ""}`}
+              ref={sportsMenuRef}
               onMouseEnter={() => setSportsOpen(true)}
               onMouseLeave={() => setSportsOpen(false)}
+              onFocusCapture={() => setSportsOpen(true)}
+              onBlurCapture={(event) => {
+                if (!sportsMenuRef.current?.contains(event.relatedTarget)) {
+                  setSportsOpen(false);
+                }
+              }}
             >
-              <button type="button" onClick={() => setSportsOpen((value) => !value)}>
+              <button
+                type="button"
+                className={`nav-link nav-link--trigger${sportsOpen ? " active" : ""}`}
+                aria-haspopup="true"
+                aria-expanded={sportsOpen}
+                aria-controls="nav-sports-menu"
+                onClick={() => setSportsOpen((value) => !value)}
+              >
                 Sports
               </button>
-              <div className="dropdown-panel">
+              <div className="dropdown-panel" id="nav-sports-menu" role="menu">
                 {SPORTS_GROUPS.map((group) => (
                   <div className="dropdown-group" key={group.label}>
                     <span className="group-title">{group.label}</span>
@@ -107,16 +260,17 @@ function App() {
                           {item.status === "active" ? (
                             <button
                               type="button"
+                              role="menuitem"
                               onClick={() => {
-                                if (item.action) {
-                                  scrollToSection(item.action);
+                                if (item.action === "hero") {
+                                  requestScroll("ufc", "hero");
                                 }
                               }}
                             >
                               {item.label}
                             </button>
                           ) : (
-                            <span className="soon-item">
+                            <span className="soon-item" role="menuitem" aria-disabled="true">
                               {item.label}
                               <small>Soon</small>
                             </span>
@@ -128,8 +282,25 @@ function App() {
                 ))}
               </div>
             </div>
-            <button type="button" onClick={() => scrollToSection("hero")}>UFC Predictor</button>
-            <button type="button" onClick={() => scrollToSection("analytics")}>Analytics</button>
+            <button
+              type="button"
+              className={`${activeView === "ufc" ? "nav-link active" : "nav-link"} nav-link--ufc`}
+              onClick={() => requestScroll("ufc", "hero")}
+              aria-label="UFC Predictor — new"
+            >
+              <span className="nav-link-label">UFC Predictor</span>
+              <span className="nav-new-chip" aria-hidden="true">
+                <span className="nav-new-chip__dot" />
+                <span className="nav-new-chip__text">New</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="nav-link"
+              onClick={() => requestScroll("home", "upcoming-events")}
+            >
+              Upcoming Events
+            </button>
           </div>
 
           <div className="nav-actions">
@@ -144,17 +315,31 @@ function App() {
       </nav>
 
       <main className="app-main">
-        <UFCPage onOpenStreams={() => setShowStreams(true)} onOpenBookmakers={() => setShowBookmakers(true)} />
+        {activeView === "home" && (
+          <HomePage
+            onExploreUFC={() => requestScroll("ufc", "hero")}
+            onOpenVip={() => {
+              setShowVip(true);
+              setVipError("");
+            }}
+            onOpenBookmakers={() => setShowBookmakers(true)}
+            onOpenStreams={() => setShowStreams(true)}
+          />
+        )}
+        {activeView === "ufc" && (
+          <UFCPage onOpenStreams={() => setShowStreams(true)} onOpenBookmakers={() => setShowBookmakers(true)} />
+        )}
       </main>
 
-      <footer className="site-footer" id="analytics">
+      <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-column">
             <span className="footer-title">Product</span>
-            <button type="button" onClick={() => scrollToSection("hero")}>UFC Predictor</button>
-            <button type="button" onClick={() => scrollToSection("main-card")}>Main Card Insights</button>
-            <button type="button" onClick={() => scrollToSection("prelims")}>Prelims Breakdown</button>
+            <button type="button" onClick={() => requestScroll("home", "home")}>Homepage</button>
+            <button type="button" onClick={() => requestScroll("home", "upcoming-events")}>Upcoming Events</button>
+            <button type="button" onClick={() => requestScroll("ufc", "main-card")}>Main Card Insights</button>
           </div>
+
           <div className="footer-column">
             <span className="footer-title">Sports</span>
             <span className="footer-note">Bellator — Soon</span>
@@ -162,6 +347,7 @@ function App() {
             <span className="footer-note">NBA — Soon</span>
             <span className="footer-note">Esports — Soon</span>
           </div>
+
           <div className="footer-column">
             <span className="footer-title">Support</span>
             <span className="footer-note">help@predictorlabs.io</span>
@@ -184,15 +370,30 @@ function App() {
         <div className="footer-base">
           <span>© {currentYear} Predictor Labs. All rights reserved.</span>
           <div className="footer-links-inline">
-            <a href="#hero" onClick={(event) => { event.preventDefault(); scrollToSection("hero"); }}>Home</a>
-            <a href="#main-card" onClick={(event) => { event.preventDefault(); scrollToSection("main-card"); }}>Main Card</a>
-            <a href="#prelims" onClick={(event) => { event.preventDefault(); scrollToSection("prelims"); }}>Prelims</a>
+            <button type="button" onClick={() => requestScroll("home", "home")}>Home</button>
+            <button type="button" onClick={() => requestScroll("ufc", "main-card")}>Main Card</button>
+            <button type="button" onClick={() => requestScroll("ufc", "prelims")}>Prelims</button>
           </div>
         </div>
         <p className="footer-disclaimer">
           Predictions are for entertainment only. No guarantees are implied, wagering is 18+ and please bet responsibly.
         </p>
       </footer>
+
+      {isTransitioning && (
+        <div className="view-transition" role="status" aria-live="polite">
+          <div className="view-transition__backdrop" />
+          <div className="view-transition__content">
+            <div className="view-transition__spinner">
+              <span className="ring" />
+              <span className="ring" />
+            </div>
+            <span className="view-transition__label">
+              Loading {VIEW_LABELS[transitionTarget ?? activeView]}
+            </span>
+          </div>
+        </div>
+      )}
 
       {showStreams &&
         createPortal(
