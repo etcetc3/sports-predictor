@@ -954,11 +954,6 @@ function FightCard({ fight, accent }) {
                     <h3>{activeTab} insights</h3>
                     <p>Advanced {activeTab.toLowerCase()} analytics will unlock soon for VIP members.</p>
                   </div>
-                ) : (
-                  <div className="placeholder-panel">
-                    <h3>{activeTab} insights</h3>
-                    <p>Advanced {activeTab.toLowerCase()} analytics will unlock soon for VIP members.</p>
-                  </div>
                 )}
               </div>
 
