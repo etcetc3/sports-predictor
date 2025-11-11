@@ -159,12 +159,19 @@
 
 .event-actions {
   display: flex;
+  align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
+.event-shortcuts {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
 .event-actions button {
-  padding: 0.75rem 1.4rem;
+  padding: 0.72rem 1.4rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: none;
@@ -181,6 +188,23 @@
   color: #f5b544;
 }
 
+.event-actions .generate-btn {
+  background: linear-gradient(132deg, rgba(245, 181, 68, 0.9), rgba(255, 124, 64, 0.9));
+  color: #0b0f18;
+  border: none;
+  box-shadow: 0 18px 40px rgba(245, 181, 68, 0.28);
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+.event-actions .generate-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: rgba(245, 181, 68, 0.28);
+  color: rgba(11, 15, 24, 0.65);
+}
+
 .event-meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -189,7 +213,7 @@
   border-radius: 18px;
   background: rgba(14, 17, 24, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 2.2rem;
+  margin-bottom: 1.8rem;
 }
 
 .meta-label {
@@ -204,6 +228,41 @@
 .event-meta strong {
   font-size: 1rem;
   letter-spacing: 0.04em;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.insight-card {
+  padding: 1rem 1.2rem;
+  border-radius: 16px;
+  background: rgba(16, 20, 28, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 0.3rem;
+}
+
+.insight-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #a3abbc;
+}
+
+.insight-value {
+  font-size: 1.12rem;
+  letter-spacing: 0.06em;
+}
+
+.insight-hint {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8d95a7;
 }
 
 .loading-banner {
@@ -257,34 +316,36 @@
 }
 
 .section-header p {
-  margin: 0.6rem 0 2.2rem;
+  margin: 0.6rem 0 2.1rem;
   color: #a3abbc;
   letter-spacing: 0.04em;
 }
 
 .fight-pyramid {
   display: grid;
-  gap: 1.8rem;
+  gap: 1.6rem;
 }
 
 .fight-row {
-  display: grid;
-  gap: 1.4rem;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 1.4rem;
 }
 
 .fight-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.3rem;
-  padding: 1.8rem 1.6rem;
+  gap: 1.1rem;
+  padding: 1.6rem 1.4rem 1.6rem;
   border-radius: 20px;
   background: rgba(13, 16, 24, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
   transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  width: clamp(220px, 21vw, 270px);
+  margin: 0 auto;
 }
 
 .fight-card.accent-main {
@@ -338,6 +399,13 @@
   letter-spacing: 0.08em;
 }
 
+.fighter-odds {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6ec8a5;
+}
+
 .matchup-flags {
   display: inline-flex;
   align-items: center;
@@ -356,15 +424,59 @@
 }
 
 .vs-label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.fight-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: -0.25rem;
+}
+
+.fight-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fight-tag {
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(245, 181, 68, 0.18);
+  border: 1px solid rgba(245, 181, 68, 0.32);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: #f5b544;
+}
+
+.fight-tag.highlight {
+  background: rgba(90, 136, 255, 0.18);
+  border-color: rgba(90, 136, 255, 0.32);
+  color: #afc4ff;
+}
+
+.fight-detail {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+}
+
+.fight-detail.primary {
+  color: #f6f7fb;
+  font-weight: 600;
+}
+
+.fight-detail.subtle {
+  color: #8f98ad;
 }
 
 .torso-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.9rem;
 }
 
 .torso img {
@@ -452,6 +564,44 @@
   align-items: center;
 }
 
+.analysis-overview {
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+
+.analysis-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(245, 181, 68, 0.18);
+  border: 1px solid rgba(245, 181, 68, 0.32);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: #f5b544;
+}
+
+.analysis-tag.highlight {
+  background: rgba(90, 136, 255, 0.18);
+  border-color: rgba(90, 136, 255, 0.32);
+  color: #b5c7ff;
+}
+
+.analysis-meta-item {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: #9da6ba;
+}
+
+.analysis-odds {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6ec8a5;
+}
+
 .analysis-athlete {
   display: flex;
   align-items: flex-end;
@@ -488,6 +638,13 @@
   color: #a3abbc;
 }
 
+.analysis-weight {
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f5b544;
+}
+
 .analysis-flag {
   display: inline-flex;
   align-items: center;
@@ -518,6 +675,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.8rem;
+  justify-content: center;
 }
 
 .tab {
@@ -531,6 +689,8 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.25s ease, color 0.25s ease;
+  min-width: 128px;
+  text-align: center;
 }
 
 .tab.active {
@@ -661,8 +821,16 @@
 }
 
 @media (max-width: 768px) {
-  .fight-row {
-    grid-template-columns: 1fr;
+  .event-toolbar {
+    align-items: stretch;
+  }
+
+  .custom-dropdown {
+    min-width: 100%;
+  }
+
+  .fight-card {
+    width: 100%;
   }
 
   .analysis-window {
