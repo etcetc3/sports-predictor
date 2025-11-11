@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./UFCPage.css";
 import { fetchSchedule, fetchEvent, fetchFighters } from "../api/sportsdata";
@@ -7,6 +7,7 @@ const ANALYSIS_TABS = ["Matchup", "Result", "Strikes", "Grappling", "Odds"];
 const PYRAMID_TEMPLATE = [4, 3, 3, 2, 2, 1];
 const FEATURED_CARDS = 2;
 const MIN_LOADING_MS = 650;
+const UPCOMING_EVENT_STATUSES = new Set(["Scheduled", "PreFight", "InProgress"]);
 
 const FLAG_IMAGE = {
   us: "/flags/us.svg",
@@ -66,8 +67,8 @@ const FLAG_IMAGE = {
 const COUNTRY_TO_CODE = {
   "united states": "us",
   "united states of america": "us",
-  "usa": "us",
-  "america": "us",
+  usa: "us",
+  america: "us",
   "united kingdom": "gb",
   england: "gb",
   scotland: "gb",
@@ -107,14 +108,12 @@ const COUNTRY_TO_CODE = {
   ghana: "gh",
   cameroon: "cm",
   morocco: "ma",
-  "dominican republic": "do",
   cuba: "cu",
   romania: "ro",
   argentina: "ar",
   chile: "cl",
   peru: "pe",
   colombia: "co",
-  france: "fr",
   "puerto rico": "pr",
   "czech republic": "cz",
   slovakia: "sk",
@@ -140,15 +139,11 @@ const COUNTRY_TO_CODE = {
   uzbekistan: "uz",
   kyrgyzstan: "kg",
   moldova: "md",
-  "south korea": "kr",
   "north korea": "kp",
   "trinidad and tobago": "tt",
   "new caledonia": "nc",
-  "dominica": "dm",
+  dominica: "dm",
 };
-
-const DEFAULT_FLAG = "/flags/default.svg";
-const DEFAULT_CARD_IMAGE = "/assets/fighters/default-avatar.png";
 
 const ISO3_TO_ISO2 = {
   USA: "us",
@@ -242,11 +237,30 @@ const ISO3_TO_ISO2 = {
   MDA: "md",
   BGR: "bg",
   CYP: "cy",
-  SVN: "si",
   SGP: "sg",
   MYS: "my",
   IDN: "id",
 };
+
+const DEFAULT_FLAG = "/flags/default.svg";
+const DEFAULT_CARD_IMAGE = "/assets/fighters/default-avatar.png";
+
+function coerceHttps(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  if (trimmed.startsWith("http://")) {
+    return `https://${trimmed.slice(7)}`;
+  }
+  return trimmed;
+}
 
 const FIGHTER_MEDIA = {
   "Steve Garcia": {
@@ -425,7 +439,7 @@ const FALLBACK_SCHEDULE = [
 const BASELINE_STATS = {
   "Steve Garcia": {
     country: "United States",
-    height: `6'0"`,
+    height: "6'0",
     weight: "146 lb",
     reach: "75 in",
     leg_reach: "41 in",
@@ -435,7 +449,7 @@ const BASELINE_STATS = {
   },
   "David Onama": {
     country: "Uganda",
-    height: `5'11"`,
+    height: "5'11",
     weight: "146 lb",
     reach: "74 in",
     leg_reach: "40 in",
@@ -451,17 +465,21 @@ const BASELINE_STATS = {
   },
 };
 
+function sanitizeImageUrl(value) {
+  const normalized = coerceHttps(value);
+  if (!normalized) {
+    return null;
+  }
+  return normalized.replace(/\s+/g, "%20");
+}
+
 function resolveFlagCode(primary, secondary) {
   const attempts = [primary, secondary];
   for (const attempt of attempts) {
-    if (!attempt) {
-      continue;
-    }
+    if (!attempt) continue;
 
     const raw = String(attempt).trim();
-    if (!raw) {
-      continue;
-    }
+    if (!raw) continue;
 
     if (/^[a-z]{2}$/i.test(raw)) {
       return raw.toLowerCase();
@@ -505,14 +523,6 @@ function getFlagImage(code, fighterName) {
   return normalized ? `/flags/${normalized}.svg` : DEFAULT_FLAG;
 }
 
-function normalizeImageUrl(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-}
-
 function selectFighterImage(profile = {}, variant = "card") {
   const name = profile.resolvedName || profile.Name || profile.FullName;
   if (name && FIGHTER_MEDIA[name]?.[variant]) {
@@ -534,7 +544,7 @@ function selectFighterImage(profile = {}, variant = "card") {
     profile.FantasyDraftImageUrl,
   ];
 
-  const match = candidates.map(normalizeImageUrl).find(Boolean);
+  const match = candidates.map(sanitizeImageUrl).find(Boolean);
   if (match) {
     return match;
   }
@@ -644,9 +654,23 @@ function withUnit(value, unit) {
   return `${num} ${unit}`;
 }
 
+function buildRecord(source = {}) {
+  if (source.Record) {
+    return source.Record;
+  }
+  const wins = source.Wins ?? source.PreFightWins ?? source.PrevWins ?? 0;
+  const losses = source.Losses ?? source.PreFightLosses ?? source.PrevLosses ?? 0;
+  const draws = source.Draws ?? source.PreFightDraws ?? source.PrevDraws ?? 0;
+  const noContests = source.NoContests ?? source.PreFightNoContests ?? source.PrevNoContests ?? 0;
+  if (noContests) {
+    return `${wins}-${losses}-${draws} (${noContests} NC)`;
+  }
+  return `${wins}-${losses}-${draws}`;
+}
+
 function deriveFighterStats(full = {}, entry = {}) {
-  const height = inchesToHeight(full.Height || entry.Height);
-  const weight = withUnit(full.Weight || entry.Weight, "lb");
+  const height = inchesToHeight(full.HeightInches ?? full.Height ?? entry.Height);
+  const weight = withUnit(full.Weight ?? entry.Weight, "lb");
   const reach = withUnit(full.Reach, "in") || withUnit(entry.Reach, "in");
   const legReach = withUnit(full.LegReach, "in") || withUnit(entry.LegReach, "in");
   const strikes = full.StrikesLandedPerMinute ?? entry.SignificantStrikesLandedPerMinute;
@@ -660,7 +684,7 @@ function deriveFighterStats(full = {}, entry = {}) {
     leg_reach: legReach,
     significantStrikes: strikes != null ? Number(strikes).toFixed(2) : null,
     takedownAvg: takedownAvg != null ? Number(takedownAvg).toFixed(2) : null,
-    odds: entry.Moneyline ?? null,
+    odds: entry.Moneyline ?? entry.PreFightMoneyline ?? null,
   };
 }
 
@@ -704,7 +728,16 @@ function formatOdds(odds) {
   return num > 0 ? `+${num}` : String(num);
 }
 
-function FightCard({ fight, accent }) {
+function detectTitleFight(fight = {}) {
+  return Boolean(
+    fight.IsTitleFight ||
+      fight.TitleFight ||
+      fight.ChampionshipBout ||
+      (fight.WeightClass && fight.WeightClass.toLowerCase().includes("title"))
+  );
+}
+
+function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [activeTab, setActiveTab] = useState(ANALYSIS_TABS[0]);
   const isInteractive = fight.isInteractive;
@@ -722,6 +755,14 @@ function FightCard({ fight, accent }) {
     };
   }, [showAnalysis]);
 
+  useEffect(() => {
+    if (autoFocus && isInteractive) {
+      setActiveTab(ANALYSIS_TABS[0]);
+      setShowAnalysis(true);
+      onAutoHandled?.();
+    }
+  }, [autoFocus, isInteractive, onAutoHandled]);
+
   const fighter1Name = fight.fighter1 || "TBA";
   const fighter2Name = fight.fighter2 || "TBA";
   const fighter1Record = fight.record1 || "0-0-0";
@@ -732,16 +773,8 @@ function FightCard({ fight, accent }) {
   const flagSrc2 = fight.flagAsset2 || getFlagImage(fighter2Flag, fighter2Name);
   const cardImage1 = getFighterImage(fighter1Name, "card", fight.cardImage1);
   const cardImage2 = getFighterImage(fighter2Name, "card", fight.cardImage2);
-  const fullImage1 = getFighterImage(
-    fighter1Name,
-    "full",
-    fight.fullImage1 || fight.cardImage1 || cardImage1,
-  );
-  const fullImage2 = getFighterImage(
-    fighter2Name,
-    "full",
-    fight.fullImage2 || fight.cardImage2 || cardImage2,
-  );
+  const fullImage1 = getFighterImage(fighter1Name, "full", fight.fullImage1 || fight.cardImage1 || cardImage1);
+  const fullImage2 = getFighterImage(fighter2Name, "full", fight.fullImage2 || fight.cardImage2 || cardImage2);
 
   const s1 = fight.stats1 || BASELINE_STATS[fighter1Name] || {};
   const s2 = fight.stats2 || BASELINE_STATS[fighter2Name] || {};
@@ -750,13 +783,13 @@ function FightCard({ fight, accent }) {
     .filter(Boolean)
     .join(" ");
 
-  const openAnalysis = () => {
+  const openAnalysis = useCallback(() => {
     if (!isInteractive) {
       return;
     }
     setActiveTab(ANALYSIS_TABS[0]);
     setShowAnalysis(true);
-  };
+  }, [isInteractive]);
 
   return (
     <>
@@ -765,25 +798,33 @@ function FightCard({ fight, accent }) {
           <div className="fighter-block">
             <span className="fighter-name">{fighter1Name}</span>
             <span className="fighter-record">{fighter1Record}</span>
+            {fight.odds1 != null && <span className="fighter-odds">{formatOdds(fight.odds1)}</span>}
           </div>
           <div className="matchup-flags">
-            <img
-              src={flagSrc1}
-              alt={`${fighter1Name} flag`}
-              onError={(event) => fallbackImage(event, "flag")}
-            />
+            <img src={flagSrc1} alt={`${fighter1Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
             <span className="vs-label">VS</span>
-            <img
-              src={flagSrc2}
-              alt={`${fighter2Name} flag`}
-              onError={(event) => fallbackImage(event, "flag")}
-            />
+            <img src={flagSrc2} alt={`${fighter2Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
           </div>
           <div className="fighter-block align-right">
             <span className="fighter-name">{fighter2Name}</span>
             <span className="fighter-record">{fighter2Record}</span>
+            {fight.odds2 != null && <span className="fighter-odds">{formatOdds(fight.odds2)}</span>}
           </div>
         </header>
+
+        {(fight.mainEvent || fight.titleFight) && (
+          <div className="fight-tags">
+            {fight.mainEvent && <span className="fight-tag">Main Event</span>}
+            {fight.titleFight && <span className="fight-tag highlight">Title Fight</span>}
+          </div>
+        )}
+
+        {(fight.weightClass || fight.detailLine) && (
+          <div className="fight-meta">
+            {fight.weightClass && <span className="fight-detail primary">{fight.weightClass}</span>}
+            {fight.detailLine && <span className="fight-detail subtle">{fight.detailLine}</span>}
+          </div>
+        )}
 
         <div className="torso-row">
           <div className="torso left">
@@ -820,20 +861,14 @@ function FightCard({ fight, accent }) {
             <div className="analysis-window" onClick={(event) => event.stopPropagation()}>
               <div className="analysis-header">
                 <div className="analysis-athlete">
-                  <img
-                    src={fullImage1}
-                    alt={fighter1Name}
-                    onError={(event) => fallbackImage(event, "fighter")}
-                  />
+                  <img src={fullImage1} alt={fighter1Name} onError={(event) => fallbackImage(event, "fighter")} />
                   <div className="analysis-meta">
                     <strong>{fighter1Name}</strong>
                     <span>{fighter1Record}</span>
+                    {fight.weightClass && <span className="analysis-weight">{fight.weightClass}</span>}
+                    {fight.odds1 != null && <span className="analysis-odds">{formatOdds(fight.odds1)}</span>}
                     <div className="analysis-flag">
-                      <img
-                        src={flagSrc1}
-                        alt={`${fighter1Name} flag`}
-                        onError={(event) => fallbackImage(event, "flag")}
-                      />
+                      <img src={flagSrc1} alt={`${fighter1Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
                       <span>{s1.country || "—"}</span>
                     </div>
                   </div>
@@ -842,25 +877,27 @@ function FightCard({ fight, accent }) {
                 <div className="analysis-divider">VS</div>
 
                 <div className="analysis-athlete align-right">
-                  <img
-                    src={fullImage2}
-                    alt={fighter2Name}
-                    onError={(event) => fallbackImage(event, "fighter")}
-                  />
+                  <img src={fullImage2} alt={fighter2Name} onError={(event) => fallbackImage(event, "fighter")} />
                   <div className="analysis-meta">
                     <strong>{fighter2Name}</strong>
                     <span>{fighter2Record}</span>
+                    {fight.weightClass && <span className="analysis-weight">{fight.weightClass}</span>}
+                    {fight.odds2 != null && <span className="analysis-odds">{formatOdds(fight.odds2)}</span>}
                     <div className="analysis-flag">
-                      <img
-                        src={flagSrc2}
-                        alt={`${fighter2Name} flag`}
-                        onError={(event) => fallbackImage(event, "flag")}
-                      />
+                      <img src={flagSrc2} alt={`${fighter2Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
                       <span>{s2.country || "—"}</span>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {(fight.mainEvent || fight.titleFight || fight.detailLine) && (
+                <div className="analysis-overview">
+                  {fight.mainEvent && <span className="analysis-tag">Main Event</span>}
+                  {fight.titleFight && <span className="analysis-tag highlight">Title Fight</span>}
+                  {fight.detailLine && <span className="analysis-meta-item">{fight.detailLine}</span>}
+                </div>
+              )}
 
               <div className="tabs">
                 {ANALYSIS_TABS.map((tab) => (
@@ -895,30 +932,30 @@ function FightCard({ fight, accent }) {
                         <span className="label">Leg Reach</span>
                         <span className="value">{s1.leg_reach || "—"}</span>
                       </div>
-                    <div className="stat-item">
-                      <span className="label">Sig. Strikes</span>
-                      <span className="value">{s1.significantStrikes ?? "—"}</span>
+                      <div className="stat-item">
+                        <span className="label">Sig. Strikes</span>
+                        <span className="value">{s1.significantStrikes ?? "—"}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span className="label">Takedown Avg</span>
+                        <span className="value">{s1.takedownAvg ?? "—"}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span className="label">Odds</span>
+                        <span className="value">{formatOdds(fight.odds1 ?? s1.odds)}</span>
+                      </div>
                     </div>
-                    <div className="stat-item">
-                      <span className="label">Takedown Avg</span>
-                      <span className="value">{s1.takedownAvg ?? "—"}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="label">Odds</span>
-                      <span className="value">{formatOdds(s1.odds)}</span>
-                    </div>
-                  </div>
 
-                  <div className="stat-col diff">
-                    <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
-                    <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
-                    <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
-                    <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
-                    <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
-                    <div className="diff-item">{formatDiff(s1.takedownAvg, s2.takedownAvg)}</div>
-                  </div>
+                    <div className="stat-col diff">
+                      <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
+                      <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
+                      <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
+                      <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
+                      <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
+                      <div className="diff-item">{formatDiff(s1.takedownAvg, s2.takedownAvg)}</div>
+                    </div>
 
-                  <div className="stat-col">
+                    <div className="stat-col">
                       <div className="stat-item">
                         <span className="label">Height</span>
                         <span className="value">{s2.height || "—"}</span>
@@ -935,20 +972,20 @@ function FightCard({ fight, accent }) {
                         <span className="label">Leg Reach</span>
                         <span className="value">{s2.leg_reach || "—"}</span>
                       </div>
-                    <div className="stat-item">
-                      <span className="label">Sig. Strikes</span>
-                      <span className="value">{s2.significantStrikes ?? "—"}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="label">Takedown Avg</span>
-                      <span className="value">{s2.takedownAvg ?? "—"}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="label">Odds</span>
-                      <span className="value">{formatOdds(s2.odds)}</span>
+                      <div className="stat-item">
+                        <span className="label">Sig. Strikes</span>
+                        <span className="value">{s2.significantStrikes ?? "—"}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span className="label">Takedown Avg</span>
+                        <span className="value">{s2.takedownAvg ?? "—"}</span>
+                      </div>
+                      <div className="stat-item">
+                        <span className="label">Odds</span>
+                        <span className="value">{formatOdds(fight.odds2 ?? s2.odds)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
                 ) : (
                   <div className="placeholder-panel">
                     <h3>{activeTab} insights</h3>
@@ -975,9 +1012,11 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
   const [eventMeta, setEventMeta] = useState(null);
+  const [eventInsights, setEventInsights] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const fightersCache = useRef({ list: [], map: new Map() });
   const loadingStartRef = useRef(null);
+  const [analysisTarget, setAnalysisTarget] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -1006,20 +1045,37 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             return;
           }
           const existing = map.get(item.EventId);
-          if (!existing || new Date(item.Date || item.Day || item.DateTime) < new Date(existing.Date)) {
+          const candidateDate = item.Date || item.Day || item.DateTime || item.Updated;
+          if (!existing || new Date(candidateDate) < new Date(existing.Date || 0)) {
             map.set(item.EventId, {
               EventId: item.EventId,
               Name: item.Name,
-              Date: item.Date || item.Day || item.DateTime,
+              Date: candidateDate,
+              Status: item.Status,
             });
           }
         });
 
-        const upcoming = Array.from(map.values()).sort((a, b) => {
-          const dateA = new Date(a.Date || 0).getTime();
-          const dateB = new Date(b.Date || 0).getTime();
-          return dateA - dateB;
-        });
+        const now = Date.now();
+        const upcoming = Array.from(map.values())
+          .filter((event) => {
+            if (UPCOMING_EVENT_STATUSES.has(event.Status)) {
+              return true;
+            }
+            if (!event.Date) {
+              return false;
+            }
+            const time = new Date(event.Date).getTime();
+            if (Number.isNaN(time)) {
+              return false;
+            }
+            return time >= now - 1000 * 60 * 60 * 12;
+          })
+          .sort((a, b) => {
+            const dateA = new Date(a.Date || 0).getTime();
+            const dateB = new Date(b.Date || 0).getTime();
+            return dateA - dateB;
+          });
 
         setEvents(upcoming.length ? [...upcoming, ...FALLBACK_SCHEDULE] : FALLBACK_SCHEDULE);
       } catch (error) {
@@ -1068,42 +1124,85 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
       if (!selectedEvent) {
         setCurrentEvent(null);
         setEventMeta(null);
+        setEventInsights([]);
         return;
       }
 
       loadingStartRef.current = Date.now();
       setIsLoading(true);
+      setAnalysisTarget(null);
 
       const fallbackMapper = (fight, index, cardType) => ({
         ...fight,
         cardType,
+        fightKey: `${cardType}-${index}`,
+        fightId: `${cardType}-${index}`,
         isInteractive: cardType === "main" && index < FEATURED_CARDS,
         stats1: BASELINE_STATS[fight.fighter1],
         stats2: BASELINE_STATS[fight.fighter2],
+        weightClass: fight.weightClass || fight.WeightClass || "",
+        detailLine: fight.detailLine || "",
+        titleFight: Boolean(fight.titleFight || fight.weightClass?.toLowerCase().includes("title")),
+        mainEvent: false,
       });
 
       if (selectedEvent === FALLBACK_EVENT_ID) {
         const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => fallbackMapper(fight, index, "main"));
         const featuredPrelims = FALLBACK_EVENT.prelims.map((fight, index) => fallbackMapper(fight, index, "prelim"));
+        if (featuredMain.length) {
+          featuredMain[featuredMain.length - 1].mainEvent = true;
+        }
         setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
         setEventMeta(FALLBACK_EVENT.meta);
+        const totalFallback = featuredMain.length + featuredPrelims.length;
+        const titleFallback = featuredMain.filter((item) => item.titleFight).length;
+        const headline = featuredMain[featuredMain.length - 1] || null;
+        setEventInsights([
+          headline
+            ? {
+                label: "Main Event",
+                value: `${headline.fighter1} vs ${headline.fighter2}`,
+                hint: headline.weightClass || "Headline bout",
+              }
+            : null,
+          {
+            label: "Total Fights",
+            value: totalFallback,
+            hint: `${featuredMain.length} main • ${featuredPrelims.length} prelim`,
+          },
+          {
+            label: "Title Fights",
+            value: titleFallback,
+            hint: titleFallback ? "Championship stakes" : "None scheduled",
+          },
+          {
+            label: "Analysis Ready",
+            value: featuredMain.filter((item) => item.isInteractive).length,
+            hint: "Featured matchups",
+          },
+        ].filter(Boolean));
         finishLoading();
         return;
       }
 
       try {
         if (!fightersCache.current.list.length) {
-          const fighters = await fetchFighters();
-          if (!isMounted) {
-            return;
-          }
-          const map = new Map();
-          fighters.forEach((athlete) => {
-            if (athlete?.FighterId) {
-              map.set(athlete.FighterId, athlete);
+          try {
+            const fighters = await fetchFighters();
+            if (!isMounted) {
+              return;
             }
-          });
-          fightersCache.current = { list: fighters, map };
+            const map = new Map();
+            fighters.forEach((athlete) => {
+              if (athlete?.FighterId) {
+                map.set(athlete.FighterId, athlete);
+              }
+            });
+            fightersCache.current = { list: fighters, map };
+          } catch (directoryError) {
+            console.error("Fighter directory error:", directoryError);
+            fightersCache.current = { list: [], map: new Map() };
+          }
         }
 
         const details = await fetchEvent(selectedEvent);
@@ -1118,15 +1217,21 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             date: details?.DateTime || "",
             location: extractEventLocation(details),
           });
+          setEventInsights([]);
           finishLoading();
           return;
         }
 
+        const fighterDirectory = fightersCache.current.map || new Map();
         const enrichedFights = details.Fights.map((fight) => {
           const fightersInFight = (fight.Fighters || []).map((entry) => {
-            const full = fightersCache.current.map.get(entry.FighterId) || {};
+            const full = fighterDirectory.get(entry.FighterId) || {};
             const resolvedName =
-              full?.Name || [full?.FirstName, full?.LastName].filter(Boolean).join(" ") || entry.Name;
+              full?.Name ||
+              [full?.FirstName, full?.LastName, full?.Nickname ? `"${full.Nickname}"` : null]
+                .filter(Boolean)
+                .join(" ") ||
+              entry.Name;
 
             const profile = {
               ...entry,
@@ -1145,13 +1250,21 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
               stats: deriveFighterStats(full, entry),
               cardImage: selectFighterImage(profile, "card"),
               fullImage: selectFighterImage(profile, "full"),
+              record: buildRecord({
+                Record: full?.Record || entry.Record,
+                Wins: full?.Wins ?? entry.Wins ?? entry.PreFightWins,
+                Losses: full?.Losses ?? entry.Losses ?? entry.PreFightLosses,
+                Draws: full?.Draws ?? entry.Draws ?? entry.PreFightDraws,
+                NoContests: full?.NoContests ?? entry.NoContests ?? entry.PreFightNoContests,
+              }),
+              odds: entry.Moneyline ?? entry.PreFightMoneyline ?? null,
             };
           });
 
           return { ...fight, Fighters: fightersInFight };
         }).filter((fight) => (fight.Fighters || []).length >= 2);
 
-        enrichedFights.sort((a, b) => (a.Order || 0) - (b.Order || 0));
+        enrichedFights.sort((a, b) => (a.Order || a.Sequence || 0) - (b.Order || b.Sequence || 0));
 
         let prelims = enrichedFights.filter((fight) => fight.CardSegment?.toLowerCase().includes("prelim"));
         let mainCard = enrichedFights.filter((fight) => fight.CardSegment?.toLowerCase().includes("main"));
@@ -1166,16 +1279,35 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           const [f1, f2] = fight.Fighters;
           const name1 = f1?.resolvedName || "TBA";
           const name2 = f2?.resolvedName || "TBA";
-          const record1 = f1?.Record || `${f1?.Wins ?? 0}-${f1?.Losses ?? 0}-${f1?.Draws ?? 0}`;
-          const record2 = f2?.Record || `${f2?.Wins ?? 0}-${f2?.Losses ?? 0}-${f2?.Draws ?? 0}`;
           const flag1 = f1?.flag || resolveFlagCode(f1?.CountryCode, f1?.Country || f1?.Nationality);
           const flag2 = f2?.flag || resolveFlagCode(f2?.CountryCode, f2?.Country || f2?.Nationality);
+          const weightClass = fight.WeightClass || fight.FightWeightClass || "";
+          const rounds = fight.ScheduledRounds || fight.NumberOfRounds || fight.Rounds || null;
+          const titleFight = detectTitleFight(fight);
+
+          const broadcast = fight.Broadcast || fight.TvStation || fight.Network || "";
+          const detailParts = [];
+          if (titleFight) {
+            detailParts.push("Championship Bout");
+          }
+          if (rounds) {
+            detailParts.push(`${rounds} Rounds`);
+          }
+          if (broadcast) {
+            detailParts.push(broadcast);
+          }
+          const detailLine = detailParts.join(" • ");
+
+          const fightId = fight.FightId || fight.FightID || fight.EventFightId;
+          const mainEvent = Boolean(fight.MainEvent || fight.IsMainEvent || fight.Sequence === "Main");
 
           return {
+            fightKey: String(fightId || `${cardType}-${index}`),
+            fightId: fightId || `${cardType}-${index}`,
             fighter1: name1,
             fighter2: name2,
-            record1,
-            record2,
+            record1: f1?.record || f1?.Record || buildRecord(f1) || buildRecord(),
+            record2: f2?.record || f2?.Record || buildRecord(f2) || buildRecord(),
             flag1,
             flag2,
             flagAsset1: getFlagImage(flag1, name1),
@@ -1188,13 +1320,51 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             isInteractive: cardType === "main" && index < FEATURED_CARDS,
             stats1: f1?.stats,
             stats2: f2?.stats,
-            odds1: f1?.Moneyline ?? f1?.stats?.odds ?? null,
-            odds2: f2?.Moneyline ?? f2?.stats?.odds ?? null,
+            odds1: f1?.odds,
+            odds2: f2?.odds,
+            weightClass,
+            detailLine,
+            titleFight,
+            mainEvent,
+            rounds,
           };
         };
 
         const formattedMain = mainCard.map((fight, index) => toFightCard(fight, index, "main"));
         const formattedPrelims = prelims.map((fight, index) => toFightCard(fight, index, "prelim"));
+
+        if (formattedMain.length) {
+          formattedMain[formattedMain.length - 1].mainEvent = true;
+        }
+
+        const totalFights = formattedMain.length + formattedPrelims.length;
+        const titleCount = formattedMain.filter((fight) => fight.titleFight).length;
+        const analyticsReady = formattedMain.filter((fight) => fight.isInteractive).length;
+        const headline = formattedMain[formattedMain.length - 1] || null;
+
+        const insightPayload = [];
+        if (headline) {
+          insightPayload.push({
+            label: "Main Event",
+            value: `${headline.fighter1} vs ${headline.fighter2}`,
+            hint: headline.weightClass || "Headline bout",
+          });
+        }
+        insightPayload.push({
+          label: "Total Fights",
+          value: totalFights || "—",
+          hint: `${formattedMain.length} main • ${formattedPrelims.length} prelim`,
+        });
+        insightPayload.push({
+          label: "Title Fights",
+          value: titleCount || "0",
+          hint: titleCount ? "Championship stakes" : "None scheduled",
+        });
+        insightPayload.push({
+          label: "Analysis Ready",
+          value: analyticsReady || "0",
+          hint: analyticsReady ? "Featured matchups" : "Coming soon",
+        });
 
         setCurrentEvent({ mainCard: formattedMain, prelims: formattedPrelims });
         setEventMeta({
@@ -1202,13 +1372,44 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           date: details?.DateTime || details?.StartTime || details?.Date,
           location: extractEventLocation(details),
         });
+        setEventInsights(insightPayload);
       } catch (error) {
         console.error("Event Error:", error);
         if (isMounted) {
           const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => fallbackMapper(fight, index, "main"));
           const featuredPrelims = FALLBACK_EVENT.prelims.map((fight, index) => fallbackMapper(fight, index, "prelim"));
+          if (featuredMain.length) {
+            featuredMain[featuredMain.length - 1].mainEvent = true;
+          }
           setCurrentEvent({ mainCard: featuredMain, prelims: featuredPrelims });
           setEventMeta(FALLBACK_EVENT.meta);
+          const totalFallback = featuredMain.length + featuredPrelims.length;
+          const titleFallback = featuredMain.filter((item) => item.titleFight).length;
+          const headline = featuredMain[featuredMain.length - 1] || null;
+          setEventInsights([
+            headline
+              ? {
+                  label: "Main Event",
+                  value: `${headline.fighter1} vs ${headline.fighter2}`,
+                  hint: headline.weightClass || "Headline bout",
+                }
+              : null,
+            {
+              label: "Total Fights",
+              value: totalFallback,
+              hint: `${featuredMain.length} main • ${featuredPrelims.length} prelim`,
+            },
+            {
+              label: "Title Fights",
+              value: titleFallback,
+              hint: titleFallback ? "Championship stakes" : "None scheduled",
+            },
+            {
+              label: "Analysis Ready",
+              value: featuredMain.filter((item) => item.isInteractive).length,
+              hint: "Featured matchups",
+            },
+          ].filter(Boolean));
         }
       } finally {
         if (isMounted) {
@@ -1227,6 +1428,17 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
   const mainRows = useMemo(() => buildPyramidLayout(currentEvent?.mainCard || []), [currentEvent]);
   const prelimRows = useMemo(() => buildPyramidLayout(currentEvent?.prelims || []), [currentEvent]);
 
+  const handleGenerateAnalysis = () => {
+    const featured = currentEvent?.mainCard?.find((fight) => fight.isInteractive);
+    if (featured) {
+      setAnalysisTarget(featured.fightKey);
+    }
+  };
+
+  const handleAutoHandled = () => {
+    setAnalysisTarget(null);
+  };
+
   return (
     <div className="ufc-page">
       <section className="ufc-hero" id="hero">
@@ -1238,8 +1450,12 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             layout engineered for analysts.
           </p>
           <div className="hero-actions">
-            <button type="button" onClick={onOpenStreams}>Live Streams</button>
-            <button type="button" onClick={onOpenBookmakers}>Top Bookmakers</button>
+            <button type="button" onClick={onOpenStreams}>
+              Live Streams
+            </button>
+            <button type="button" onClick={onOpenBookmakers}>
+              Top Bookmakers
+            </button>
           </div>
         </div>
         <div className="hero-summary">
@@ -1252,9 +1468,7 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           </div>
           <div className="summary-card">
             <span className="summary-title">AI Roadmap</span>
-            <p>
-              Automated tape study, AI pick generation and opponent pattern detection are currently in private testing.
-            </p>
+            <p>Automated tape study, AI pick generation and opponent pattern detection are in private testing.</p>
           </div>
         </div>
       </section>
@@ -1278,11 +1492,27 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             </div>
           </div>
           <div className="event-actions">
-            <button type="button" onClick={() => document.getElementById("main-card")?.scrollIntoView({ behavior: "smooth" })}>
-              Main Card
-            </button>
-            <button type="button" onClick={() => document.getElementById("prelims")?.scrollIntoView({ behavior: "smooth" })}>
-              Prelims
+            <div className="event-shortcuts">
+              <button
+                type="button"
+                onClick={() => document.getElementById("main-card")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Main Card
+              </button>
+              <button
+                type="button"
+                onClick={() => document.getElementById("prelims")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Prelims
+              </button>
+            </div>
+            <button
+              type="button"
+              className="generate-btn"
+              onClick={handleGenerateAnalysis}
+              disabled={!currentEvent?.mainCard?.some((fight) => fight.isInteractive)}
+            >
+              Generate Analysis
             </button>
           </div>
         </header>
@@ -1304,6 +1534,18 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           </div>
         )}
 
+        {eventInsights.length > 0 && (
+          <div className="insight-grid">
+            {eventInsights.map((insight) => (
+              <div className="insight-card" key={insight.label}>
+                <span className="insight-label">{insight.label}</span>
+                <strong className="insight-value">{insight.value}</strong>
+                {insight.hint && <span className="insight-hint">{insight.hint}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
         {isLoading && (
           <div className="loading-banner">
             <div className="loading-pulse" />
@@ -1322,7 +1564,13 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
                 {mainRows.map((row, rowIndex) => (
                   <div className="fight-row" key={`main-row-${rowIndex}`}>
                     {row.map((fight, index) => (
-                      <FightCard fight={fight} accent="main" key={`main-${rowIndex}-${index}`} />
+                      <FightCard
+                        fight={fight}
+                        accent="main"
+                        key={fight.fightKey || `main-${rowIndex}-${index}`}
+                        autoFocus={analysisTarget === fight.fightKey}
+                        onAutoHandled={handleAutoHandled}
+                      />
                     ))}
                   </div>
                 ))}
@@ -1339,7 +1587,13 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
                   {prelimRows.map((row, rowIndex) => (
                     <div className="fight-row" key={`prelim-row-${rowIndex}`}>
                       {row.map((fight, index) => (
-                        <FightCard fight={fight} accent="prelim" key={`prelim-${rowIndex}-${index}`} />
+                        <FightCard
+                          fight={fight}
+                          accent="prelim"
+                          key={fight.fightKey || `prelim-${rowIndex}-${index}`}
+                          autoFocus={analysisTarget === fight.fightKey}
+                          onAutoHandled={handleAutoHandled}
+                        />
                       ))}
                     </div>
                   ))}
