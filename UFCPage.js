@@ -5,7 +5,6 @@ import { fetchSchedule, fetchEvent, fetchFighters } from "../api/sportsdata";
 
 const ANALYSIS_TABS = ["Matchup", "Result", "Strikes", "Grappling", "Odds"];
 const PYRAMID_TEMPLATE = [4, 3, 3, 2, 2, 1];
-const FEATURED_CARDS = 2;
 const MIN_LOADING_MS = 650;
 const UPCOMING_EVENT_STATUSES = new Set(["Scheduled", "PreFight", "InProgress"]);
 
@@ -262,6 +261,178 @@ function coerceHttps(value) {
   return trimmed;
 }
 
+function resolveFighterName(full = {}, entry = {}) {
+  const direct = full.Name || entry.Name;
+  if (direct) {
+    return direct;
+  }
+
+  const preferred =
+    full.PreferredName ||
+    entry.PreferredName ||
+    full.ShortName ||
+    entry.ShortName ||
+    full.KnownName ||
+    entry.KnownName;
+  if (preferred) {
+    return preferred;
+  }
+
+  const first = full.FirstName || entry.FirstName;
+  const last = full.LastName || entry.LastName;
+  const nickname = full.Nickname || entry.Nickname || full.NickName || entry.NickName;
+
+  const pieces = [first, nickname ? `"${nickname}"` : null, last].filter(Boolean);
+  if (pieces.length) {
+    return pieces.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  const alternative =
+    full.FullName ||
+    entry.FullName ||
+    [first, last].filter(Boolean).join(" ") ||
+    [last, first].filter(Boolean).join(" ");
+  if (alternative) {
+    return alternative.replace(/\s+/g, " ").trim();
+  }
+
+  const fallback = [last, first, nickname, full.DisplayName, entry.DisplayName].find((value) => value);
+  return fallback ? String(fallback) : "";
+}
+
+function normalizeDirectoryKey(value) {
+  if (value == null) {
+    return null;
+  }
+  const str = String(value).trim();
+  if (!str) {
+    return null;
+  }
+  return str.toLowerCase();
+}
+
+function registerDirectoryValue(map, value, fighter, options = {}) {
+  const key = normalizeDirectoryKey(value);
+  if (!key) {
+    return;
+  }
+  if (!options.force && map.has(key)) {
+    return;
+  }
+  map.set(key, fighter);
+}
+
+function registerFighterProfile(map, fighter) {
+  if (!fighter) {
+    return;
+  }
+
+  const idCandidates = [
+    fighter.FighterId,
+    fighter.FighterID,
+    fighter.EventFighterId,
+    fighter.EventFighterID,
+    fighter.PlayerId,
+    fighter.PlayerID,
+    fighter.PersonId,
+    fighter.PersonID,
+    fighter.SourceId,
+    fighter.SourceID,
+    fighter.GlobalId,
+    fighter.GlobalID,
+    fighter.SportsDataId,
+    fighter.SportsDataID,
+    fighter.StatsId,
+    fighter.StatsID,
+    fighter.RotowirePlayerID,
+    fighter.RotoWirePlayerID,
+    fighter.OddsPlayerID,
+    fighter.OddsPlayerId,
+  ];
+
+  idCandidates.forEach((candidate) => registerDirectoryValue(map, candidate, fighter));
+
+  const nameCandidates = [
+    fighter.Name,
+    fighter.FullName,
+    fighter.DisplayName,
+    fighter.ShortName,
+    fighter.PreferredName,
+    fighter.Nickname,
+    fighter.NickName,
+    [fighter.FirstName, fighter.LastName].filter(Boolean).join(" "),
+    [fighter.LastName, fighter.FirstName].filter(Boolean).join(" "),
+  ];
+
+  nameCandidates
+    .filter(Boolean)
+    .forEach((candidate) => registerDirectoryValue(map, `name:${candidate}`, fighter));
+}
+
+function lookupFighterProfile(map, entry = {}) {
+  if (!map || map.size === 0) {
+    return null;
+  }
+
+  const idCandidates = [
+    entry.FighterId,
+    entry.FighterID,
+    entry.EventFighterId,
+    entry.EventFighterID,
+    entry.PlayerId,
+    entry.PlayerID,
+    entry.PersonId,
+    entry.PersonID,
+    entry.SourceId,
+    entry.SourceID,
+    entry.GlobalId,
+    entry.GlobalID,
+    entry.SportsDataId,
+    entry.SportsDataID,
+    entry.StatsId,
+    entry.StatsID,
+  ];
+
+  for (const candidate of idCandidates) {
+    const key = normalizeDirectoryKey(candidate);
+    if (!key) {
+      continue;
+    }
+    const profile = map.get(key);
+    if (profile) {
+      return profile;
+    }
+  }
+
+  const nameCandidates = [
+    entry.Name,
+    entry.FullName,
+    entry.DisplayName,
+    entry.PreferredName,
+    entry.ShortName,
+    entry.Nickname,
+    entry.NickName,
+    [entry.FirstName, entry.LastName].filter(Boolean).join(" "),
+    [entry.LastName, entry.FirstName].filter(Boolean).join(" "),
+  ];
+
+  for (const candidate of nameCandidates) {
+    if (!candidate) {
+      continue;
+    }
+    const key = normalizeDirectoryKey(`name:${candidate}`);
+    if (!key) {
+      continue;
+    }
+    const profile = map.get(key);
+    if (profile) {
+      return profile;
+    }
+  }
+
+  return null;
+}
+
 const FIGHTER_MEDIA = {
   "Steve Garcia": {
     card: "/assets/fighters/GARCIA_STEVE_L_09-07.avif",
@@ -308,7 +479,387 @@ const FIGHTER_MEDIA = {
     full: "/assets/fighters/DELVALLE_YADIER_R_10-15.avif",
     flag: FLAG_IMAGE.cu,
   },
+  "Charles Radtke": {
+    card: "/assets/fighters/RADTKE_CHARLES_L_06-08.avif",
+    full: "/assets/fighters/RADTKE_CHARLES_L_06-08.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Daniel Frunza": {
+    card: "/assets/fighters/FRUNZA_DANIEL_R_04-05.avif",
+    full: "/assets/fighters/FRUNZA_DANIEL_R_04-05.avif",
+    flag: FLAG_IMAGE.ro,
+  },
+  "Allan Nascimento": {
+    card: "/assets/fighters/NASCIMENTO_ALLAN_L_01-14.avif",
+    full: "/assets/fighters/NASCIMENTO_ALLAN_L_01-14.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Rafael Estevam": {
+    card: "/assets/fighters/ESTEVAM_RAFAEL_R_11-18.avif",
+    full: "/assets/fighters/ESTEVAM_RAFAEL_R_11-18.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Billy Elekana": {
+    card: "/assets/fighters/ELEKANA_BILLY_L_01-18.avif",
+    full: "/assets/fighters/ELEKANA_BILLY_L_01-18.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Kevin Christian": {
+    card: "/assets/fighters/CHRISTIAN_KEVIN_L_09-24.avif",
+    full: "/assets/fighters/CHRISTIAN_KEVIN_L_09-24.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Timothy Cuamba": {
+    card: "/assets/fighters/CUAMBA_TIMOTHY_L_04-26.avif",
+    full: "/assets/fighters/CUAMBA_TIMOTHY_L_04-26.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Timmy Cuamba": {
+    card: "/assets/fighters/CUAMBA_TIMOTHY_L_04-26.avif",
+    full: "/assets/fighters/CUAMBA_TIMOTHY_L_04-26.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "ChangHo Lee": {
+    card: "/assets/fighters/LEE_CHANGHO_R_04-05.avif",
+    full: "/assets/fighters/LEE_CHANGHO_R_04-05.avif",
+    flag: FLAG_IMAGE.kr,
+  },
+  "Chang Ho Lee": {
+    card: "/assets/fighters/LEE_CHANGHO_R_04-05.avif",
+    full: "/assets/fighters/LEE_CHANGHO_R_04-05.avif",
+    flag: FLAG_IMAGE.kr,
+  },
+  "Donte Johnson": {
+    card: "/assets/fighters/JOHNSON_DONTE_L_08-26.avif",
+    full: "/assets/fighters/JOHNSON_DONTE_L_08-26.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Sedriques Dumas": {
+    card: "/assets/fighters/DUMAS_SEDRIQUES_R_06-24.avif",
+    full: "/assets/fighters/DUMAS_SEDRIQUES_R_06-24.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Ketlen Vieira": {
+    card: "/assets/fighters/VIEIRA_KETLEN_L_05-31.avif",
+    full: "/assets/fighters/VIEIRA_KETLEN_L_05-31.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Norma Dumont": {
+    card: "/assets/fighters/DUMONT_NORMA_R_09-14.avif",
+    full: "/assets/fighters/DUMONT_NORMA_R_09-14.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Alice Ardelean": {
+    card: "/assets/fighters/ARDELEAN_ALICE_R_07-27.avif",
+    full: "/assets/fighters/ARDELEAN_ALICE_R_07-27.avif",
+    flag: FLAG_IMAGE.ro,
+  },
+  "Montserrat Ruiz": {
+    card: "/assets/fighters/RUIZ_MONTSERRAT_CONEJO_R_11-04.avif",
+    full: "/assets/fighters/RUIZ_MONTSERRAT_CONEJO_R_11-04.avif",
+    flag: FLAG_IMAGE.mx,
+  },
+  "Phil Rowe": {
+    card: "/assets/fighters/ROWE_PHIL_L_06-14.avif",
+    full: "/assets/fighters/ROWE_PHIL_L_06-14.avif",
+    flag: FLAG_IMAGE.us,
+  },
+  "Seokhyeon Ko": {
+    card: "/assets/fighters/KO_SEOKHYEON_L_06-21.avif",
+    full: "/assets/fighters/KO_SEOKHYEON_L_06-21.avif",
+    flag: FLAG_IMAGE.kr,
+  },
+  "Seok Hyeon Ko": {
+    card: "/assets/fighters/KO_SEOKHYEON_L_06-21.avif",
+    full: "/assets/fighters/KO_SEOKHYEON_L_06-21.avif",
+    flag: FLAG_IMAGE.kr,
+  },
+  "Talita Alencar": {
+    card: "/assets/fighters/ALENCAR_TALITA_L_12-09.avif",
+    full: "/assets/fighters/ALENCAR_TALITA_L_12-09.avif",
+    flag: FLAG_IMAGE.br,
+  },
+  "Ariane Carnelossi": {
+    card: "/assets/fighters/CARNELOSSI_ARIANE_R_05-18.avif",
+    full: "/assets/fighters/CARNELOSSI_ARIANE_R_05-18.avif",
+    flag: FLAG_IMAGE.br,
+  },
 };
+
+const STATIC_FIGHTER_ASSETS = [
+  "7c76e7f9-1248-4c83-84d4-e9afba9f5247%2FDAUKAUS_KYLE_L_06-18.avif",
+  "ALENCAR_TALITA_L_12-09.avif",
+  "AMIL_HYDER_L_06-28.avif",
+  "ARDELEAN_ALICE_R_07-27.avif",
+  "BARCELOS_RAONI_R_06-14.avif",
+  "BLANCHFIELD_ERIN_L_05-31.avif",
+  "BONFIM_GABRIEL_L_07-25.avif",
+  "BONFIM_ISMAEL_R_11-04.avif",
+  "BRADY_SEAN_L_09-07.avif",
+  "BROWN_RANDY_R_06-01.avif",
+  "BUENO_SILVA_MAYRA_L_06-29.avif",
+  "CARNELOSSI_ARIANE_R_05-18.avif",
+  "CAVALCANTI_JACQUELINE_R_02-15.avif",
+  "CHRISTIAN_KEVIN_L_09-24.avif",
+  "CORTES-ACOSTA_WALDO_L_03-15.avif",
+  "CORTEZ_TRACY_R_06-28.avif",
+  "CUAMBA_TIMOTHY_L_04-26.avif",
+  "DARIUSH_BENEIL_L_06-28.avif",
+  "DELIJA_ANTE_R_09-06.avif",
+  "DELLA_MADDALENA_JACK_L_BELTMOCK.avif",
+  "DELVALLE_YADIER_R_10-15.avif",
+  "DULGARIAN_ISAAC_L_09-07.avif",
+  "DUMAS_SEDRIQUES_R_06-24.avif",
+  "DUMONT_NORMA_R_09-14.avif",
+  "DUNCAN_CHRISTIAN_LEROY_L_03-22.avif",
+  "EDWARDS_LEON_L_03-22.avif",
+  "ELEKANA_BILLY_L_01-18.avif",
+  "EMMERS_JAMALL_R_03-30.avif",
+  "ESTEVAM_RAFAEL_R_11-18.avif",
+  "FRUNZA_DANIEL_R_04-05.avif",
+  "GARCIA_STEVE_L_09-07.avif",
+  "GOMES_DENISE_R_05-17.avif",
+  "GORIMBO_THEMBA_R_12-07.avif",
+  "HADDON_CODY_R_10-12.avif",
+  "HILL_ANGELA_L_02-15.avif",
+  "HOKIT_JOSH_L_08-19.avif",
+  "JOHNS_MILES_L_08-09.avif",
+  "JOHNSON_DONTE_L_08-26.avif",
+  "KLINE_FATIMA_R_07-13.avif",
+  "KO_SEOKHYEON_L_06-21.avif",
+  "KOPYLOV_ROMAN_L_01-11.avif",
+  "LEE_CHANGHO_R_04-05.avif",
+  "MAKHACHEV_ISLAM_R_10-22.avif",
+  "MARCOS_DANIEL_R_05-03.avif",
+  "MARISCAL_CHEPE_R_03-01.avif",
+  "MCCONICO_ERIC_R_08-09.avif",
+  "MCVEY_JACKSON_R_07-19.avif",
+  "MEDIC_UROS_R_01-11.avif",
+  "MEERSCHAERT_GERALD_R_04-05.avif",
+  "MORALES_JOSEPH_R_08-16.avif",
+  "MORALES_MICHAEL_R_05-17.avif",
+  "NASCIMENTO_ALLAN_L_01-14.avif",
+  "NICKAL_BO_L_11-16.avif",
+  "ONAMA_DAVID_R_04-26.avif",
+  "PADILLA_CHRIS_L_04-27.avif",
+  "PENNINGTON_TECIA_L_05-17.avif",
+  "PRATES_CARLOS_R_08-16.avif",
+  "RADTKE_CHARLES_L_06-08.avif",
+  "ROWE_PHIL_L_06-14.avif",
+  "RUIZ_MONTSERRAT_CONEJO_R_11-04.avif",
+  "SABATINI_PAT_L_04-05.avif",
+  "SAINT_DENIS_BENOIT_R_09-28.avif",
+  "SALIKHOV_MUSLIM_L_07-26.avif",
+  "SCHNELL_MATT_L_04-26.avif",
+  "SHADOW_Fighter_fullLength_BLUE.avif",
+  "SHEVCHENKO_VALENTINA_BELT_L_05-10.avif",
+  "SIMON_RICKY_L_06-14.avif",
+  "SUSURKAEV_BAYSANGUR_L_08-16.avif",
+  "TULIO_MARCO_R_04-12.avif",
+  "VALENTIN_ROBERT_R_07-19.avif",
+  "VIEIRA_KETLEN_L_05-31.avif",
+  "VIEIRA_RODOLFO_R_04-29.avif",
+  "WEILI_ZHANG_R_06-11.avif",
+  "WELLMAN_MALCOLM_L_06-14.avif",
+  "WELLS_JEREMIAH_L_08-05.avif",
+];
+
+function safeDecodeAsset(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+}
+
+function normalizeText(value) {
+  if (value == null) {
+    return "";
+  }
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, "")
+    .toUpperCase();
+}
+
+function addNameTokens(target, value) {
+  if (!target || value == null) {
+    return;
+  }
+
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return;
+  }
+
+  const spaceTokens = normalized.split(/\s+/).filter(Boolean);
+  if (spaceTokens.length === 0) {
+    const sanitized = normalized.replace(/[^A-Z-]/g, "");
+    if (sanitized) {
+      target.add(sanitized);
+      const collapsed = sanitized.replace(/-/g, "");
+      if (collapsed && collapsed !== sanitized) {
+        target.add(collapsed);
+      }
+      sanitized
+        .split("-")
+        .filter(Boolean)
+        .forEach((part) => target.add(part));
+    }
+    return;
+  }
+
+  const sanitizedTokens = spaceTokens.map((token) => token.replace(/[^A-Z-]/g, "")).filter(Boolean);
+  sanitizedTokens.forEach((token) => {
+    target.add(token);
+    const collapsed = token.replace(/-/g, "");
+    if (collapsed && collapsed !== token) {
+      target.add(collapsed);
+    }
+    const hyphenParts = token.split("-").filter(Boolean);
+    if (hyphenParts.length > 1) {
+      hyphenParts.forEach((part) => target.add(part));
+      target.add(hyphenParts.join(""));
+    }
+  });
+
+  for (let start = 0; start < sanitizedTokens.length; start += 1) {
+    for (let end = start + 2; end <= sanitizedTokens.length; end += 1) {
+      const slice = sanitizedTokens.slice(start, end);
+      if (!slice.length) {
+        continue;
+      }
+      target.add(slice.join(""));
+      target.add(slice.join("-"));
+    }
+  }
+
+  if (sanitizedTokens.length) {
+    target.add(sanitizedTokens.join(""));
+    target.add(sanitizedTokens.join("-"));
+  }
+
+  const collapsedAll = normalized.replace(/[^A-Z]/g, "");
+  if (collapsedAll) {
+    target.add(collapsedAll);
+  }
+}
+
+const FIGHTER_ASSET_INDEX = STATIC_FIGHTER_ASSETS.map((filename) => {
+  const decoded = safeDecodeAsset(filename);
+  const base = decoded.replace(/\.[^.]+$/, "");
+  const [identifier] = base.split(/_[LR]_/);
+  const tokens = new Set();
+  identifier
+    .split("_")
+    .filter(Boolean)
+    .forEach((segment) => addNameTokens(tokens, segment));
+  const primaryRaw = identifier.split("_")[0] || "";
+  const primaryToken = normalizeText(primaryRaw).replace(/[^A-Z-]/g, "");
+  const sanitizedPrimary = primaryToken.replace(/-/g, "");
+  if (sanitizedPrimary && sanitizedPrimary !== primaryToken) {
+    tokens.add(sanitizedPrimary);
+  }
+
+  const requiredMatchCount = Math.max(1, tokens.size <= 2 ? tokens.size : tokens.size - 1);
+
+  return {
+    filename,
+    path: `/assets/fighters/${filename}`,
+    identifier,
+    tokens,
+    primaryToken,
+    requiredMatchCount,
+  };
+});
+
+function resolveLocalFighterAsset(profile = {}) {
+  const candidateTokens = new Set();
+  const nameCandidates = [
+    profile.resolvedName,
+    profile.Name,
+    profile.FullName,
+    profile.DisplayName,
+    profile.PreferredName,
+    profile.ShortName,
+    profile.KnownName,
+    [profile.FirstName, profile.LastName].filter(Boolean).join(" "),
+    [profile.LastName, profile.FirstName].filter(Boolean).join(" "),
+  ];
+
+  nameCandidates.forEach((candidate) => addNameTokens(candidateTokens, candidate));
+  addNameTokens(candidateTokens, profile.Nickname);
+  addNameTokens(candidateTokens, profile.NickName);
+
+  if (!candidateTokens.size) {
+    return null;
+  }
+
+  let bestEntry = null;
+  let bestScore = 0;
+
+  FIGHTER_ASSET_INDEX.forEach((entry) => {
+    if (
+      entry.primaryToken &&
+      !candidateTokens.has(entry.primaryToken) &&
+      !candidateTokens.has(entry.primaryToken.replace(/-/g, ""))
+    ) {
+      return;
+    }
+
+    let matchCount = 0;
+    entry.tokens.forEach((token) => {
+      if (candidateTokens.has(token)) {
+        matchCount += 1;
+      }
+    });
+
+    if (matchCount < entry.requiredMatchCount) {
+      return;
+    }
+
+    const score = matchCount * 100 + entry.tokens.size;
+    if (!bestEntry || score > bestScore) {
+      bestEntry = entry;
+      bestScore = score;
+    }
+  });
+
+  if (bestEntry) {
+    return bestEntry.path;
+  }
+
+  let fallbackEntry = null;
+  let fallbackScore = 0;
+
+  FIGHTER_ASSET_INDEX.forEach((entry) => {
+    if (
+      entry.primaryToken &&
+      !candidateTokens.has(entry.primaryToken) &&
+      !candidateTokens.has(entry.primaryToken.replace(/-/g, ""))
+    ) {
+      return;
+    }
+
+    let matchCount = 0;
+    entry.tokens.forEach((token) => {
+      if (candidateTokens.has(token)) {
+        matchCount += 1;
+      }
+    });
+
+    if (matchCount >= 2) {
+      const score = matchCount * 10 + entry.tokens.size;
+      if (!fallbackEntry || score > fallbackScore) {
+        fallbackEntry = entry;
+        fallbackScore = score;
+      }
+    }
+  });
+
+  return fallbackEntry ? fallbackEntry.path : null;
+}
 
 const FALLBACK_EVENT_ID = "offline-event";
 
@@ -529,6 +1080,11 @@ function selectFighterImage(profile = {}, variant = "card") {
     return FIGHTER_MEDIA[name][variant];
   }
 
+  const localAsset = resolveLocalFighterAsset(profile);
+  if (localAsset) {
+    return localAsset;
+  }
+
   const candidates = [
     profile.CardImage,
     profile.cardImage,
@@ -624,6 +1180,216 @@ function formatOptionDate(value) {
   });
 }
 
+function computeAgeFromBirthDate(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const now = new Date();
+  let age = now.getFullYear() - date.getFullYear();
+  const monthDiff = now.getMonth() - date.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? age : null;
+}
+
+function formatDateDisplay(value, fallback = "—") {
+  if (!value) {
+    return fallback;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatAgeValue(value) {
+  if (value == null || Number.isNaN(Number(value))) {
+    return "—";
+  }
+  return `${value} yrs`;
+}
+
+function composeHometown({ City, State, Country, BirthCity, BirthState, BirthCountry } = {}) {
+  const primary = [City, State, Country].filter(Boolean).join(", ");
+  if (primary) {
+    return primary;
+  }
+  const birth = [BirthCity, BirthState, BirthCountry].filter(Boolean).join(", ");
+  return birth || null;
+}
+
+function formatFightTime(value) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (typeof value === "string" && value.includes(":")) {
+    return value;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  return formatClockValue(numeric) || "—";
+}
+
+function parseNumeric(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+  const numeric = Number(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function secondsToClock(value) {
+  if (value == null || Number.isNaN(Number(value))) {
+    return null;
+  }
+  const totalSeconds = Math.max(0, Math.floor(Number(value)));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatClockValue(value) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  if (typeof value === "number") {
+    return secondsToClock(value) || "—";
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return "—";
+  }
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return secondsToClock(parseFloat(trimmed)) || "—";
+  }
+  return trimmed;
+}
+
+function formatPercentage(value) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  const percentage = numeric <= 1 && numeric >= 0 ? numeric * 100 : numeric;
+  return `${percentage.toFixed(percentage % 1 === 0 ? 0 : 1)}%`;
+}
+
+function formatNumber(value, options = {}) {
+  if (value == null || value === "") {
+    return "—";
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  const digits = options.digits ?? (Math.abs(numeric) >= 10 ? 0 : 1);
+  return numeric.toFixed(digits);
+}
+
+function formatAttempt(landed, attempted) {
+  if (landed == null && attempted == null) {
+    return "—";
+  }
+  const landedText = landed == null ? "—" : formatNumber(landed, { digits: 0 });
+  const attemptedText = attempted == null ? "—" : formatNumber(attempted, { digits: 0 });
+  return `${landedText} / ${attemptedText}`;
+}
+
+function formatList(value) {
+  if (!value && value !== 0) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(", ");
+  }
+  return String(value);
+}
+
+function buildFightMetrics(entry = {}) {
+  const metrics = {
+    result: entry.Result || entry.Outcome || entry.FightOutcome || null,
+    resultDetail: entry.ResultComment || entry.ResultDetails || entry.DecisionDetail || null,
+    knockdowns: entry.Knockdowns ?? entry.KnockdownsLanded ?? entry.Kd ?? entry.KDs ?? null,
+    sigStrikesLanded:
+      entry.SignificantStrikesLanded ?? entry.SigStrikesLanded ?? entry.SignificantStrikes ?? null,
+    sigStrikesAttempted:
+      entry.SignificantStrikesAttempted ?? entry.SigStrikesAttempted ?? entry.SignificantStrikesAttempted ?? null,
+    totalStrikesLanded: entry.TotalStrikesLanded ?? entry.StrikesLanded ?? null,
+    totalStrikesAttempted: entry.TotalStrikesAttempted ?? entry.StrikesAttempted ?? null,
+    strikingAccuracy:
+      entry.StrikingAccuracy ?? entry.SignificantStrikesAccuracy ?? entry.SignificantStrikeAccuracy ?? null,
+    strikesAbsorbed:
+      entry.StrikesAbsorbedPerMinute ?? entry.SignificantStrikesAbsorbedPerMinute ?? entry.StrikesAbsorbed ?? null,
+    strikingDefense:
+      entry.StrikingDefense ?? entry.SignificantStrikesDefense ?? entry.SignificantStrikeDefense ?? null,
+    takedownsLanded: entry.TakedownsLanded ?? entry.Takedowns ?? null,
+    takedownsAttempted: entry.TakedownsAttempted ?? null,
+    takedownAccuracy: entry.TakedownAccuracy ?? null,
+    takedownDefense: entry.TakedownDefense ?? null,
+    takedownAverage: entry.TakedownAveragePer15Minutes ?? entry.TakedownAverage ?? null,
+    submissionAverage:
+      entry.SubmissionAveragePer15Minutes ?? entry.SubmissionAverage ?? entry.SubmissionAttemptsPer15Minutes ?? null,
+    submissionAttempts: entry.SubmissionAttempts ?? null,
+    reversals: entry.Reversals ?? null,
+    controlTime: entry.ControlTimeSeconds ?? entry.ControlTime ?? null,
+  };
+
+  return Object.fromEntries(Object.entries(metrics).filter(([, value]) => value != null && value !== ""));
+}
+
+function moneylineToProbability(odds) {
+  if (odds == null || odds === "") {
+    return null;
+  }
+  const numeric = Number(odds);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return null;
+  }
+  let probability;
+  if (numeric > 0) {
+    probability = 100 / (numeric + 100);
+  } else {
+    probability = -numeric / (-numeric + 100);
+  }
+  return Math.max(0, Math.min(1, probability));
+}
+
+function pickFavorite(odds1, odds2, name1, name2) {
+  if (odds1 == null || odds2 == null) {
+    return null;
+  }
+  const a = Number(odds1);
+  const b = Number(odds2);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) {
+    return null;
+  }
+  if (a < 0 && b >= 0) {
+    return name1;
+  }
+  if (b < 0 && a >= 0) {
+    return name2;
+  }
+  if (a < 0 && b < 0) {
+    return Math.abs(a) > Math.abs(b) ? name1 : name2;
+  }
+  return Math.abs(a) < Math.abs(b) ? name1 : name2;
+}
+
 function inchesToHeight(value) {
   if (value == null || value === "") {
     return null;
@@ -669,22 +1435,130 @@ function buildRecord(source = {}) {
 }
 
 function deriveFighterStats(full = {}, entry = {}) {
-  const height = inchesToHeight(full.HeightInches ?? full.Height ?? entry.Height);
-  const weight = withUnit(full.Weight ?? entry.Weight, "lb");
-  const reach = withUnit(full.Reach, "in") || withUnit(entry.Reach, "in");
-  const legReach = withUnit(full.LegReach, "in") || withUnit(entry.LegReach, "in");
-  const strikes = full.StrikesLandedPerMinute ?? entry.SignificantStrikesLandedPerMinute;
-  const takedownAvg = full.TakedownAveragePer15Minutes ?? entry.TakedownAveragePer15Minutes;
+  const heightSource = full.HeightInches ?? entry.HeightInches ?? full.Height ?? entry.Height;
+  const weightSource = full.WeightInPounds ?? entry.WeightInPounds ?? full.Weight ?? entry.Weight;
+  const reachSource = full.Reach ?? entry.Reach;
+  const legReachSource = full.LegReach ?? entry.LegReach;
+  const strikes =
+    full.StrikesLandedPerMinute ?? entry.SignificantStrikesLandedPerMinute ?? entry.SignificantStrikesPerMinute;
+  const takedownAvg =
+    full.TakedownAveragePer15Minutes ?? entry.TakedownAveragePer15Minutes ?? entry.TakedownsPer15Minutes;
+  const knockdownAvg =
+    full.KnockdownAveragePer15Minutes ?? entry.KnockdownAveragePer15Minutes ?? entry.KnockdownsPer15Minutes ?? null;
+  const avgFightTimeSeconds =
+    parseNumeric(
+      full.AverageFightTimeSeconds ??
+        entry.AverageFightTimeSeconds ??
+        full.AverageFightTime ??
+        entry.AverageFightTime,
+    );
+  const careerFightTimeSeconds =
+    parseNumeric(full.CareerFightTimeSeconds ?? entry.CareerFightTimeSeconds ?? entry.TotalFightTimeSeconds);
+
+  const winsRaw = full.Wins ?? entry.Wins ?? entry.PreFightWins;
+  const lossesRaw = full.Losses ?? entry.Losses ?? entry.PreFightLosses;
+  const drawsRaw = full.Draws ?? entry.Draws ?? entry.PreFightDraws;
+  const noContestsRaw = full.NoContests ?? entry.NoContests ?? entry.PreFightNoContests;
+
+  const wins = winsRaw != null ? Number(winsRaw) : null;
+  const losses = lossesRaw != null ? Number(lossesRaw) : null;
+  const draws = drawsRaw != null ? Number(drawsRaw) : null;
+  const noContests = noContestsRaw != null ? Number(noContestsRaw) : null;
+  const totalFights =
+    [wins, losses, draws, noContests].some((value) => value != null)
+      ? (wins ?? 0) + (losses ?? 0) + (draws ?? 0) + (noContests ?? 0)
+      : null;
+
+  const birthDate =
+    full.BirthDate || entry.BirthDate || full.DateOfBirth || entry.DateOfBirth || full.DOB || entry.DOB || null;
+  const age = full.Age ?? entry.Age ?? computeAgeFromBirthDate(birthDate);
+  const hometown = composeHometown({ ...full, ...entry });
+  const camp =
+    formatList([
+      full.TrainingCamp,
+      full.Camp,
+      full.Gym,
+      full.Team,
+      entry.TrainingCamp,
+      entry.Camp,
+      entry.Gym,
+      entry.Team,
+    ]) || null;
+  const coach = formatList([full.Coach, entry.Coach, entry.Trainer]) || null;
+  const manager = formatList([full.Manager, entry.Manager]) || null;
+
+  const weightClass = full.WeightClass || entry.WeightClass || entry.Class || entry.Division || null;
+  const ranking = full.Rank ?? entry.Rank ?? entry.ChampionshipRank ?? entry.Ranking ?? null;
+
+  const winsByKnockout =
+    parseNumeric(full.WinsByKnockout ?? full.KnockoutWins ?? entry.WinsByKnockout ?? entry.KnockoutWins);
+  const winsBySubmission = parseNumeric(full.WinsBySubmission ?? entry.WinsBySubmission);
+  const winsByDecision = parseNumeric(full.WinsByDecision ?? entry.WinsByDecision);
+  const winsByOther = parseNumeric(full.WinsByOther ?? entry.WinsByOther);
+
+  const lossesByKnockout = parseNumeric(full.LossesByKnockout ?? entry.LossesByKnockout);
+  const lossesBySubmission = parseNumeric(full.LossesBySubmission ?? entry.LossesBySubmission);
+  const lossesByDecision = parseNumeric(full.LossesByDecision ?? entry.LossesByDecision);
+
+  const finishRate =
+    wins && (winsByKnockout != null || winsBySubmission != null)
+      ? (Number(winsByKnockout ?? 0) + Number(winsBySubmission ?? 0)) / wins
+      : null;
 
   return {
     country: full.Country || entry.Country || entry.Nationality || "—",
-    height,
-    weight,
-    reach,
-    leg_reach: legReach,
+    height: inchesToHeight(heightSource),
+    heightInches: parseNumeric(heightSource),
+    weight: withUnit(weightSource, "lb"),
+    weightPounds: parseNumeric(weightSource),
+    reach: withUnit(reachSource, "in"),
+    reachInches: parseNumeric(reachSource),
+    leg_reach: withUnit(legReachSource, "in"),
+    legReachInches: parseNumeric(legReachSource),
     significantStrikes: strikes != null ? Number(strikes).toFixed(2) : null,
     takedownAvg: takedownAvg != null ? Number(takedownAvg).toFixed(2) : null,
+    knockdownAvg: knockdownAvg != null ? Number(knockdownAvg).toFixed(2) : null,
     odds: entry.Moneyline ?? entry.PreFightMoneyline ?? null,
+    stance: full.Stance || entry.Stance || null,
+    strikingAccuracy:
+      full.StrikingAccuracy ?? entry.StrikingAccuracy ?? entry.SignificantStrikesAccuracy ?? null,
+    strikesAbsorbed:
+      full.StrikesAbsorbedPerMinute ??
+      entry.StrikesAbsorbedPerMinute ??
+      entry.SignificantStrikesAbsorbedPerMinute ??
+      null,
+    strikingDefense:
+      full.StrikingDefense ?? entry.StrikingDefense ?? entry.SignificantStrikesDefense ?? null,
+    takedownAccuracy: full.TakedownAccuracy ?? entry.TakedownAccuracy ?? null,
+    takedownDefense: full.TakedownDefense ?? entry.TakedownDefense ?? null,
+    submissionAverage:
+      full.SubmissionAveragePer15Minutes ?? entry.SubmissionAveragePer15Minutes ?? entry.SubmissionAverage ?? null,
+    submissionAttempts: entry.SubmissionAttempts ?? null,
+    knockdowns: entry.Knockdowns ?? full.Knockdowns ?? null,
+    controlTime: entry.ControlTimeSeconds ?? entry.ControlTime ?? null,
+    age,
+    birthDate,
+    hometown,
+    camp,
+    coach,
+    manager,
+    ranking,
+    weightClass,
+    wins,
+    losses,
+    draws,
+    noContests,
+    totalFights,
+    winsByKnockout,
+    winsBySubmission,
+    winsByDecision,
+    winsByOther,
+    lossesByKnockout,
+    lossesBySubmission,
+    lossesByDecision,
+    finishRate,
+    averageFightTimeSeconds: avgFightTimeSeconds,
+    careerFightTimeSeconds,
   };
 }
 
@@ -743,6 +1617,10 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
   const isInteractive = fight.isInteractive;
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return () => {};
+    }
+
     document.body.classList.toggle("modal-open", showAnalysis);
     if (showAnalysis) {
       document.body.style.overflow = "hidden";
@@ -778,6 +1656,260 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
 
   const s1 = fight.stats1 || BASELINE_STATS[fighter1Name] || {};
   const s2 = fight.stats2 || BASELINE_STATS[fighter2Name] || {};
+
+  const weightClassLabel = fight.weightClass || s1.weightClass || s2.weightClass || "";
+  const matchupRows = [
+    {
+      label: "Height",
+      left: s1.height || "—",
+      right: s2.height || "—",
+    },
+    {
+      label: "Weight",
+      left: s1.weight || "—",
+      right: s2.weight || "—",
+    },
+    {
+      label: "Reach",
+      left: s1.reach || "—",
+      right: s2.reach || "—",
+    },
+    {
+      label: "Leg Reach",
+      left: s1.leg_reach || "—",
+      right: s2.leg_reach || "—",
+    },
+    {
+      label: "Age",
+      left: formatAgeValue(s1.age),
+      right: formatAgeValue(s2.age),
+    },
+    {
+      label: "Stance",
+      left: s1.stance || "—",
+      right: s2.stance || "—",
+    },
+    {
+      label: "Weight Class",
+      left: s1.weightClass || weightClassLabel || "—",
+      right: s2.weightClass || weightClassLabel || "—",
+    },
+    {
+      label: "Ranking",
+      left: s1.ranking || "—",
+      right: s2.ranking || "—",
+    },
+    {
+      label: "Odds",
+      left: formatOdds(fight.odds1 ?? s1.odds),
+      right: formatOdds(fight.odds2 ?? s2.odds),
+    },
+  ].filter((row) => row.left !== "—" || row.right !== "—");
+
+  const profileRows = [
+    {
+      label: "Birthdate",
+      left: formatDateDisplay(s1.birthDate),
+      right: formatDateDisplay(s2.birthDate),
+    },
+    {
+      label: "Country",
+      left: s1.country || "—",
+      right: s2.country || "—",
+    },
+    {
+      label: "Hometown",
+      left: s1.hometown || "—",
+      right: s2.hometown || "—",
+    },
+    {
+      label: "Camp",
+      left: s1.camp || "—",
+      right: s2.camp || "—",
+    },
+    {
+      label: "Coach",
+      left: s1.coach || "—",
+      right: s2.coach || "—",
+    },
+    {
+      label: "Manager",
+      left: s1.manager || "—",
+      right: s2.manager || "—",
+    },
+  ].filter((row) => row.left !== "—" || row.right !== "—");
+
+  const performanceRows = [
+    {
+      label: "Pro Record",
+      left: fighter1Record,
+      right: fighter2Record,
+    },
+    {
+      label: "Total Fights",
+      left: s1.totalFights != null ? formatNumber(s1.totalFights, { digits: 0 }) : "—",
+      right: s2.totalFights != null ? formatNumber(s2.totalFights, { digits: 0 }) : "—",
+    },
+    {
+      label: "KO/TKO Wins",
+      left: formatNumber(s1.winsByKnockout, { digits: 0 }),
+      right: formatNumber(s2.winsByKnockout, { digits: 0 }),
+    },
+    {
+      label: "Submission Wins",
+      left: formatNumber(s1.winsBySubmission, { digits: 0 }),
+      right: formatNumber(s2.winsBySubmission, { digits: 0 }),
+    },
+    {
+      label: "Decision Wins",
+      left: formatNumber(s1.winsByDecision, { digits: 0 }),
+      right: formatNumber(s2.winsByDecision, { digits: 0 }),
+    },
+    {
+      label: "Finish Rate",
+      left: s1.finishRate != null ? formatPercentage(s1.finishRate) : "—",
+      right: s2.finishRate != null ? formatPercentage(s2.finishRate) : "—",
+    },
+    {
+      label: "Average Fight Time",
+      left: formatFightTime(s1.averageFightTimeSeconds),
+      right: formatFightTime(s2.averageFightTimeSeconds),
+    },
+    {
+      label: "Career Fight Time",
+      left: formatFightTime(s1.careerFightTimeSeconds),
+      right: formatFightTime(s2.careerFightTimeSeconds),
+    },
+    {
+      label: "Knockdown Avg / 15m",
+      left: s1.knockdownAvg != null ? `${formatNumber(s1.knockdownAvg)} / 15m` : "—",
+      right: s2.knockdownAvg != null ? `${formatNumber(s2.knockdownAvg)} / 15m` : "—",
+    },
+  ].filter((row) => row.left !== "—" || row.right !== "—");
+
+  const outcome1 = (s1.result || "").toLowerCase();
+  const outcome2 = (s2.result || "").toLowerCase();
+  const winnerName =
+    fight.winnerName ||
+    (outcome1.startsWith("win") ? fighter1Name : outcome2.startsWith("win") ? fighter2Name : null);
+  const methodText = fight.method || s1.resultDetail || s2.resultDetail || "";
+  const fightStatus = fight.fightStatus || (winnerName ? "Final" : "Scheduled");
+  const resultSummary =
+    fight.resultSummary || (winnerName && methodText ? `${winnerName} • ${methodText}` : methodText || fightStatus);
+  const finishRoundText = fight.finishRound ? `Round ${fight.finishRound}` : "—";
+  const finishTimeText = formatClockValue(fight.finishTime);
+  const refereeText = fight.referee || "—";
+  const judgesText = fight.judges || fight.scorecard || "—";
+  const oddsDisplay1 = formatOdds(fight.odds1 ?? s1.odds);
+  const oddsDisplay2 = formatOdds(fight.odds2 ?? s2.odds);
+  const implied1 = moneylineToProbability(fight.odds1 ?? s1.odds);
+  const implied2 = moneylineToProbability(fight.odds2 ?? s2.odds);
+  const overUnderText = fight.overUnder != null && fight.overUnder !== "" ? fight.overUnder : null;
+  const overOddsDisplay = fight.overOdds != null ? formatOdds(fight.overOdds) : null;
+  const underOddsDisplay = fight.underOdds != null ? formatOdds(fight.underOdds) : null;
+  const baseFavorite = fight.favoriteName || null;
+  const projectedFavorite =
+    baseFavorite ||
+    (winnerName
+      ? winnerName
+      : implied1 != null && implied2 != null
+      ? implied1 > implied2
+        ? fighter1Name
+        : implied2 > implied1
+        ? fighter2Name
+        : null
+      : null);
+  const controlTime1 = s1.controlTime != null ? formatClockValue(s1.controlTime) : "—";
+  const controlTime2 = s2.controlTime != null ? formatClockValue(s2.controlTime) : "—";
+  const resultLabel1 = s1.result || (winnerName ? (winnerName === fighter1Name ? "Win" : "Loss") : "—");
+  const resultLabel2 = s2.result || (winnerName ? (winnerName === fighter2Name ? "Win" : "Loss") : "—");
+
+  const strikeRows = [
+    {
+      label: "Significant Strikes",
+      left: formatAttempt(
+        s1.sigStrikesLanded ?? s1.significantStrikesLanded ?? s1.significantStrikes,
+        s1.sigStrikesAttempted ?? s1.significantStrikesAttempted,
+      ),
+      right: formatAttempt(
+        s2.sigStrikesLanded ?? s2.significantStrikesLanded ?? s2.significantStrikes,
+        s2.sigStrikesAttempted ?? s2.significantStrikesAttempted,
+      ),
+    },
+    {
+      label: "Sig. Strikes / Min",
+      left: s1.significantStrikes != null ? formatNumber(s1.significantStrikes) : "—",
+      right: s2.significantStrikes != null ? formatNumber(s2.significantStrikes) : "—",
+    },
+    {
+      label: "Striking Accuracy",
+      left: formatPercentage(s1.strikingAccuracy),
+      right: formatPercentage(s2.strikingAccuracy),
+    },
+    {
+      label: "Strikes Absorbed / Min",
+      left: formatNumber(s1.strikesAbsorbed, { digits: 2 }),
+      right: formatNumber(s2.strikesAbsorbed, { digits: 2 }),
+    },
+    {
+      label: "Striking Defense",
+      left: formatPercentage(s1.strikingDefense),
+      right: formatPercentage(s2.strikingDefense),
+    },
+    {
+      label: "Knockdown Avg / 15m",
+      left: s1.knockdownAvg != null ? `${formatNumber(s1.knockdownAvg)} / 15m` : "—",
+      right: s2.knockdownAvg != null ? `${formatNumber(s2.knockdownAvg)} / 15m` : "—",
+    },
+    {
+      label: "Knockdowns",
+      left: formatNumber(s1.knockdowns, { digits: 0 }),
+      right: formatNumber(s2.knockdowns, { digits: 0 }),
+    },
+  ].filter((row) => row.left !== "—" || row.right !== "—");
+
+  const grapplingRows = [
+    {
+      label: "Takedowns",
+      left: formatAttempt(s1.takedownsLanded, s1.takedownsAttempted),
+      right: formatAttempt(s2.takedownsLanded, s2.takedownsAttempted),
+    },
+    {
+      label: "Takedown Accuracy",
+      left: formatPercentage(s1.takedownAccuracy),
+      right: formatPercentage(s2.takedownAccuracy),
+    },
+    {
+      label: "Takedown Defense",
+      left: formatPercentage(s1.takedownDefense),
+      right: formatPercentage(s2.takedownDefense),
+    },
+    {
+      label: "Takedown Avg / 15m",
+      left: s1.takedownAvg != null ? `${formatNumber(s1.takedownAvg)} / 15m` : "—",
+      right: s2.takedownAvg != null ? `${formatNumber(s2.takedownAvg)} / 15m` : "—",
+    },
+    {
+      label: "Submission Avg / 15m",
+      left: s1.submissionAverage != null ? `${formatNumber(s1.submissionAverage)} / 15m` : "—",
+      right: s2.submissionAverage != null ? `${formatNumber(s2.submissionAverage)} / 15m` : "—",
+    },
+    {
+      label: "Submission Attempts",
+      left: formatNumber(s1.submissionAttempts, { digits: 0 }),
+      right: formatNumber(s2.submissionAttempts, { digits: 0 }),
+    },
+    {
+      label: "Control Time",
+      left: controlTime1,
+      right: controlTime2,
+    },
+  ].filter((row) => row.left !== "—" || row.right !== "—");
+
+  const hasOddsData =
+    (fight.odds1 ?? s1.odds ?? null) != null ||
+    (fight.odds2 ?? s2.odds ?? null) != null ||
+    overUnderText != null;
 
   const cardClass = ["fight-card", accent ? `accent-${accent}` : "", isInteractive ? "" : "locked"]
     .filter(Boolean)
@@ -819,9 +1951,9 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
           </div>
         )}
 
-        {(fight.weightClass || fight.detailLine) && (
+        {(weightClassLabel || fight.detailLine) && (
           <div className="fight-meta">
-            {fight.weightClass && <span className="fight-detail primary">{fight.weightClass}</span>}
+            {weightClassLabel && <span className="fight-detail primary">{weightClassLabel}</span>}
             {fight.detailLine && <span className="fight-detail subtle">{fight.detailLine}</span>}
           </div>
         )}
@@ -855,7 +1987,7 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
         </div>
       </article>
 
-      {showAnalysis &&
+      {showAnalysis && typeof document !== "undefined" &&
         createPortal(
           <div className="analysis-overlay" onClick={() => setShowAnalysis(false)}>
             <div className="analysis-window" onClick={(event) => event.stopPropagation()}>
@@ -865,7 +1997,7 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
                   <div className="analysis-meta">
                     <strong>{fighter1Name}</strong>
                     <span>{fighter1Record}</span>
-                    {fight.weightClass && <span className="analysis-weight">{fight.weightClass}</span>}
+                    {weightClassLabel && <span className="analysis-weight">{weightClassLabel}</span>}
                     {fight.odds1 != null && <span className="analysis-odds">{formatOdds(fight.odds1)}</span>}
                     <div className="analysis-flag">
                       <img src={flagSrc1} alt={`${fighter1Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
@@ -881,7 +2013,7 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
                   <div className="analysis-meta">
                     <strong>{fighter2Name}</strong>
                     <span>{fighter2Record}</span>
-                    {fight.weightClass && <span className="analysis-weight">{fight.weightClass}</span>}
+                    {weightClassLabel && <span className="analysis-weight">{weightClassLabel}</span>}
                     {fight.odds2 != null && <span className="analysis-odds">{formatOdds(fight.odds2)}</span>}
                     <div className="analysis-flag">
                       <img src={flagSrc2} alt={`${fighter2Name} flag`} onError={(event) => fallbackImage(event, "flag")} />
@@ -913,84 +2045,195 @@ function FightCard({ fight, accent, autoFocus, onAutoHandled }) {
               </div>
 
               <div className="analysis-body">
-                {activeTab === "Matchup" ? (
-                  <div className="stats-grid">
-                    <div className="stat-col">
-                      <div className="stat-item">
-                        <span className="label">Height</span>
-                        <span className="value">{s1.height || "—"}</span>
+                {activeTab === "Matchup" && (
+                  <div className="matchup-panels">
+                    {matchupRows.length > 0 ? (
+                      <div className="analysis-subsection">
+                        <h3 className="stat-section-title">Vitals</h3>
+                        <div className="stat-matrix">
+                          <div className="stat-header">
+                            <span>{fighter1Name}</span>
+                            <span>Metric</span>
+                            <span>{fighter2Name}</span>
+                          </div>
+                          {matchupRows.map((row) => (
+                            <div className="stat-row" key={`vital-${row.label}`}>
+                              <span className="stat-value">{row.left}</span>
+                              <span className="stat-label">{row.label}</span>
+                              <span className="stat-value">{row.right}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Weight</span>
-                        <span className="value">{s1.weight || "—"}</span>
+                    ) : null}
+
+                    {profileRows.length > 0 ? (
+                      <div className="analysis-subsection">
+                        <h3 className="stat-section-title">Profile</h3>
+                        <div className="stat-matrix">
+                          <div className="stat-header">
+                            <span>{fighter1Name}</span>
+                            <span>Detail</span>
+                            <span>{fighter2Name}</span>
+                          </div>
+                          {profileRows.map((row) => (
+                            <div className="stat-row" key={`profile-${row.label}`}>
+                              <span className="stat-value">{row.left}</span>
+                              <span className="stat-label">{row.label}</span>
+                              <span className="stat-value">{row.right}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Reach</span>
-                        <span className="value">{s1.reach || "—"}</span>
+                    ) : null}
+
+                    {performanceRows.length > 0 ? (
+                      <div className="analysis-subsection">
+                        <h3 className="stat-section-title">Performance</h3>
+                        <div className="stat-matrix">
+                          <div className="stat-header">
+                            <span>{fighter1Name}</span>
+                            <span>Metric</span>
+                            <span>{fighter2Name}</span>
+                          </div>
+                          {performanceRows.map((row) => (
+                            <div className="stat-row" key={`performance-${row.label}`}>
+                              <span className="stat-value">{row.left}</span>
+                              <span className="stat-label">{row.label}</span>
+                              <span className="stat-value">{row.right}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Leg Reach</span>
-                        <span className="value">{s1.leg_reach || "—"}</span>
+                    ) : null}
+
+                    {matchupRows.length === 0 && profileRows.length === 0 && performanceRows.length === 0 && (
+                      <div className="placeholder-panel">
+                        <h3>Matchup details</h3>
+                        <p>Fight metrics will appear here once the data provider releases official numbers.</p>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Sig. Strikes</span>
-                        <span className="value">{s1.significantStrikes ?? "—"}</span>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "Result" && (
+                  <div className="result-grid">
+                    <div className="result-summary">
+                      <div className="result-col">
+                        <span className="result-name">{fighter1Name}</span>
+                        <span className={`result-outcome ${resultLabel1.toLowerCase()}`}>{resultLabel1}</span>
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Takedown Avg</span>
-                        <span className="value">{s1.takedownAvg ?? "—"}</span>
+                      <div className="result-center">
+                        <span className="result-status">{fightStatus}</span>
+                        <strong className="result-headline">{resultSummary}</strong>
+                        {methodText && methodText !== resultSummary && (
+                          <span className="result-detail">{methodText}</span>
+                        )}
                       </div>
-                      <div className="stat-item">
-                        <span className="label">Odds</span>
-                        <span className="value">{formatOdds(fight.odds1 ?? s1.odds)}</span>
+                      <div className="result-col align-right">
+                        <span className="result-name">{fighter2Name}</span>
+                        <span className={`result-outcome ${resultLabel2.toLowerCase()}`}>{resultLabel2}</span>
                       </div>
                     </div>
-
-                    <div className="stat-col diff">
-                      <div className="diff-item">{formatDiff(s1.height, s2.height)}</div>
-                      <div className="diff-item">{formatDiff(s1.weight, s2.weight)}</div>
-                      <div className="diff-item">{formatDiff(s1.reach, s2.reach)}</div>
-                      <div className="diff-item">{formatDiff(s1.leg_reach, s2.leg_reach)}</div>
-                      <div className="diff-item">{formatDiff(s1.significantStrikes, s2.significantStrikes)}</div>
-                      <div className="diff-item">{formatDiff(s1.takedownAvg, s2.takedownAvg)}</div>
-                    </div>
-
-                    <div className="stat-col">
-                      <div className="stat-item">
-                        <span className="label">Height</span>
-                        <span className="value">{s2.height || "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Weight</span>
-                        <span className="value">{s2.weight || "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Reach</span>
-                        <span className="value">{s2.reach || "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Leg Reach</span>
-                        <span className="value">{s2.leg_reach || "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Sig. Strikes</span>
-                        <span className="value">{s2.significantStrikes ?? "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Takedown Avg</span>
-                        <span className="value">{s2.takedownAvg ?? "—"}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="label">Odds</span>
-                        <span className="value">{formatOdds(fight.odds2 ?? s2.odds)}</span>
-                      </div>
+                    <div className="result-meta-grid">
+                      {[
+                        { label: "Status", value: fightStatus },
+                        { label: "Winner", value: winnerName || "TBA" },
+                        { label: "Method", value: methodText || "—" },
+                        { label: "Round", value: finishRoundText },
+                        { label: "Time", value: finishTimeText },
+                        { label: "Referee", value: refereeText },
+                        { label: "Judges", value: judgesText },
+                      ].map((row) => (
+                        <div className="result-item" key={row.label}>
+                          <span className="label">{row.label}</span>
+                          <span className="value">{row.value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ) : (
-                  <div className="placeholder-panel">
-                    <h3>{activeTab} insights</h3>
-                    <p>Advanced {activeTab.toLowerCase()} analytics will unlock soon for VIP members.</p>
-                  </div>
+                )}
+
+                {activeTab === "Strikes" && (
+                  strikeRows.length ? (
+                    <div className="stat-matrix">
+                      <div className="stat-header">
+                        <span>{fighter1Name}</span>
+                        <span>Metric</span>
+                        <span>{fighter2Name}</span>
+                      </div>
+                      {strikeRows.map((row) => (
+                        <div className="stat-row" key={`strike-${row.label}`}>
+                          <span className="stat-value">{row.left}</span>
+                          <span className="stat-label">{row.label}</span>
+                          <span className="stat-value">{row.right}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="placeholder-panel">
+                      <h3>Striking data</h3>
+                      <p>Detailed striking metrics will populate once the event provides official stats.</p>
+                    </div>
+                  )
+                )}
+
+                {activeTab === "Grappling" && (
+                  grapplingRows.length ? (
+                    <div className="stat-matrix">
+                      <div className="stat-header">
+                        <span>{fighter1Name}</span>
+                        <span>Metric</span>
+                        <span>{fighter2Name}</span>
+                      </div>
+                      {grapplingRows.map((row) => (
+                        <div className="stat-row" key={`grappling-${row.label}`}>
+                          <span className="stat-value">{row.left}</span>
+                          <span className="stat-label">{row.label}</span>
+                          <span className="stat-value">{row.right}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="placeholder-panel">
+                      <h3>Grappling data</h3>
+                      <p>Control, submission, and takedown metrics will be available post-fight.</p>
+                    </div>
+                  )
+                )}
+
+                {activeTab === "Odds" && (
+                  hasOddsData ? (
+                    <div className="odds-section">
+                      <div className="odds-grid">
+                        <div className={`odds-card ${projectedFavorite === fighter1Name ? "favorite" : ""}`}>
+                          <span className="odds-label">{fighter1Name}</span>
+                          <strong className="odds-value">{oddsDisplay1}</strong>
+                          <span className="odds-hint">{implied1 != null ? formatPercentage(implied1) : "—"}</span>
+                        </div>
+                        <div className={`odds-card ${projectedFavorite === fighter2Name ? "favorite" : ""}`}>
+                          <span className="odds-label">{fighter2Name}</span>
+                          <strong className="odds-value">{oddsDisplay2}</strong>
+                          <span className="odds-hint">{implied2 != null ? formatPercentage(implied2) : "—"}</span>
+                        </div>
+                      </div>
+                      {projectedFavorite && <p className="odds-footnote">Projected favorite: {projectedFavorite}</p>}
+                      {overUnderText && (
+                        <div className="overunder-card">
+                          <span className="overunder-title">Total Rounds {overUnderText}</span>
+                          <div className="overunder-splits">
+                            <span>Over {overOddsDisplay || "—"}</span>
+                            <span>Under {underOddsDisplay || "—"}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="placeholder-panel">
+                      <h3>Odds outlook</h3>
+                      <p>Moneyline and totals will appear here as soon as the sportsbooks publish them.</p>
+                    </div>
+                  )
                 )}
               </div>
 
@@ -1132,19 +2375,50 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
       setIsLoading(true);
       setAnalysisTarget(null);
 
-      const fallbackMapper = (fight, index, cardType) => ({
-        ...fight,
-        cardType,
-        fightKey: `${cardType}-${index}`,
-        fightId: `${cardType}-${index}`,
-        isInteractive: cardType === "main" && index < FEATURED_CARDS,
-        stats1: BASELINE_STATS[fight.fighter1],
-        stats2: BASELINE_STATS[fight.fighter2],
-        weightClass: fight.weightClass || fight.WeightClass || "",
-        detailLine: fight.detailLine || "",
-        titleFight: Boolean(fight.titleFight || fight.weightClass?.toLowerCase().includes("title")),
-        mainEvent: false,
-      });
+      const fallbackMapper = (fight, index, cardType) => {
+        const stats1 = { ...(BASELINE_STATS[fight.fighter1] || {}) };
+        const stats2 = { ...(BASELINE_STATS[fight.fighter2] || {}) };
+        const weightClass = fight.weightClass || fight.WeightClass || "";
+        if (!stats1.weightClass && weightClass) {
+          stats1.weightClass = weightClass;
+        }
+        if (!stats2.weightClass && weightClass) {
+          stats2.weightClass = weightClass;
+        }
+        const odds1 = stats1.odds ?? null;
+        const odds2 = stats2.odds ?? null;
+        const favoriteName = pickFavorite(odds1, odds2, fight.fighter1, fight.fighter2);
+
+        return {
+          ...fight,
+          cardType,
+          fightKey: `${cardType}-${index}`,
+          fightId: `${cardType}-${index}`,
+          isInteractive: true,
+          stats1,
+          stats2,
+          odds1,
+          odds2,
+          weightClass,
+          detailLine: fight.detailLine || "",
+          titleFight: Boolean(fight.titleFight || fight.weightClass?.toLowerCase().includes("title")),
+          mainEvent: false,
+          fightStatus: "Scheduled",
+          method: "",
+          resultSummary: "Scheduled",
+          finishRound: null,
+          finishTime: null,
+          referee: "",
+          scorecard: "",
+          judges: "",
+          winnerId: null,
+          winnerName: null,
+          overUnder: null,
+          overOdds: null,
+          underOdds: null,
+          favoriteName,
+        };
+      };
 
       if (selectedEvent === FALLBACK_EVENT_ID) {
         const featuredMain = FALLBACK_EVENT.mainCard.map((fight, index) => fallbackMapper(fight, index, "main"));
@@ -1194,9 +2468,7 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             }
             const map = new Map();
             fighters.forEach((athlete) => {
-              if (athlete?.FighterId) {
-                map.set(athlete.FighterId, athlete);
-              }
+              registerFighterProfile(map, athlete);
             });
             fightersCache.current = { list: fighters, map };
           } catch (directoryError) {
@@ -1225,13 +2497,8 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
         const fighterDirectory = fightersCache.current.map || new Map();
         const enrichedFights = details.Fights.map((fight) => {
           const fightersInFight = (fight.Fighters || []).map((entry) => {
-            const full = fighterDirectory.get(entry.FighterId) || {};
-            const resolvedName =
-              full?.Name ||
-              [full?.FirstName, full?.LastName, full?.Nickname ? `"${full.Nickname}"` : null]
-                .filter(Boolean)
-                .join(" ") ||
-              entry.Name;
+            const full = lookupFighterProfile(fighterDirectory, entry) || {};
+            const resolvedName = resolveFighterName(full, entry) || entry.Name || "";
 
             const profile = {
               ...entry,
@@ -1244,12 +2511,23 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
               full?.Country || entry.Country || entry.Nationality,
             );
 
+            const baseStats = deriveFighterStats(full, entry);
+            const fightMetrics = buildFightMetrics(entry);
+            const combinedStats = { ...baseStats, ...fightMetrics };
+
+            const cardImage = selectFighterImage(profile, "card");
+            const fullImage = selectFighterImage(profile, "full");
+
+            const resultText = combinedStats.result || entry.Result || entry.Outcome || null;
+            const resultDetail =
+              combinedStats.resultDetail || entry.ResultComment || entry.DecisionDetail || entry.ResultDetails || null;
+
             return {
               ...profile,
               flag: flagCode,
-              stats: deriveFighterStats(full, entry),
-              cardImage: selectFighterImage(profile, "card"),
-              fullImage: selectFighterImage(profile, "full"),
+              stats: combinedStats,
+              cardImage,
+              fullImage,
               record: buildRecord({
                 Record: full?.Record || entry.Record,
                 Wins: full?.Wins ?? entry.Wins ?? entry.PreFightWins,
@@ -1258,6 +2536,8 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
                 NoContests: full?.NoContests ?? entry.NoContests ?? entry.PreFightNoContests,
               }),
               odds: entry.Moneyline ?? entry.PreFightMoneyline ?? null,
+              resultText,
+              resultDetail,
             };
           });
 
@@ -1284,6 +2564,66 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           const weightClass = fight.WeightClass || fight.FightWeightClass || "";
           const rounds = fight.ScheduledRounds || fight.NumberOfRounds || fight.Rounds || null;
           const titleFight = detectTitleFight(fight);
+
+          const stats1 = { ...(f1?.stats || {}) };
+          const stats2 = { ...(f2?.stats || {}) };
+          if (!stats1.weightClass && weightClass) {
+            stats1.weightClass = weightClass;
+          }
+          if (!stats2.weightClass && weightClass) {
+            stats2.weightClass = weightClass;
+          }
+          if (!stats1.result && (f1?.Result || f1?.Outcome)) {
+            stats1.result = f1.Result || f1.Outcome;
+          }
+          if (!stats1.result && f1?.resultText) {
+            stats1.result = f1.resultText;
+          }
+          if (!stats2.result && (f2?.Result || f2?.Outcome)) {
+            stats2.result = f2.Result || f2.Outcome;
+          }
+          if (!stats2.result && f2?.resultText) {
+            stats2.result = f2.resultText;
+          }
+          if (!stats1.resultDetail && (f1?.ResultComment || f1?.DecisionDetail)) {
+            stats1.resultDetail = f1.ResultComment || f1.DecisionDetail;
+          }
+          if (!stats1.resultDetail && f1?.resultDetail) {
+            stats1.resultDetail = f1.resultDetail;
+          }
+          if (!stats2.resultDetail && (f2?.ResultComment || f2?.DecisionDetail)) {
+            stats2.resultDetail = f2.ResultComment || f2.DecisionDetail;
+          }
+          if (!stats2.resultDetail && f2?.resultDetail) {
+            stats2.resultDetail = f2.resultDetail;
+          }
+
+          const odds1 = f1?.odds ?? f1?.Moneyline ?? f1?.PreFightMoneyline ?? null;
+          const odds2 = f2?.odds ?? f2?.Moneyline ?? f2?.PreFightMoneyline ?? null;
+          const favoriteName = pickFavorite(odds1, odds2, name1, name2);
+
+          const winnerId =
+            fight.WinningFighterId ||
+            fight.WinnerFighterID ||
+            fight.WinnerId ||
+            fight.FighterWinnerId ||
+            null;
+          const declaredWinner =
+            winnerId && winnerId === f1?.FighterId
+              ? name1
+              : winnerId && winnerId === f2?.FighterId
+              ? name2
+              : fight.Winner || fight.WinningFighter || null;
+          const fightStatus = fight.Status || fight.FightStatus || fight.EventStatus || fight.Stage || "Scheduled";
+          const method =
+            fight.Result || fight.Outcome || fight.Method || fight.MethodOfVictory || fight.ResultDescription || "";
+          const finishRound = fight.EndingRound || fight.ResultRound || fight.RoundEnded || null;
+          const finishTime = fight.EndingTime || fight.ResultTime || fight.Time || null;
+          const referee = fight.Referee || fight.Official || fight.RefereeName || "";
+          const scorecard = formatList(fight.Scorecard || fight.Scorecards || fight.Judges || fight.Decision);
+          const overUnder = fight.OverUnder ?? fight.TotalRounds ?? fight.Total ?? null;
+          const overOdds = fight.OverOdds ?? fight.OverPayout ?? fight.OverLine ?? null;
+          const underOdds = fight.UnderOdds ?? fight.UnderPayout ?? fight.UnderLine ?? null;
 
           const broadcast = fight.Broadcast || fight.TvStation || fight.Network || "";
           const detailParts = [];
@@ -1317,16 +2657,30 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
             fullImage1: f1?.fullImage,
             fullImage2: f2?.fullImage,
             cardType,
-            isInteractive: cardType === "main" && index < FEATURED_CARDS,
-            stats1: f1?.stats,
-            stats2: f2?.stats,
-            odds1: f1?.odds,
-            odds2: f2?.odds,
+            isInteractive: true,
+            stats1,
+            stats2,
+            odds1,
+            odds2,
             weightClass,
             detailLine,
             titleFight,
             mainEvent,
             rounds,
+            fightStatus,
+            method,
+            resultSummary: declaredWinner && method ? `${declaredWinner} • ${method}` : method || fightStatus,
+            finishRound,
+            finishTime,
+            referee,
+            scorecard,
+            judges: scorecard,
+            winnerId,
+            winnerName: declaredWinner,
+            overUnder,
+            overOdds,
+            underOdds,
+            favoriteName,
           };
         };
 
@@ -1439,6 +2793,14 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
     setAnalysisTarget(null);
   };
 
+  const scrollToSection = useCallback((sectionId) => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const target = document.getElementById(sectionId);
+    target?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   return (
     <div className="ufc-page">
       <section className="ufc-hero" id="hero">
@@ -1493,16 +2855,10 @@ function UFCPage({ onOpenStreams, onOpenBookmakers }) {
           </div>
           <div className="event-actions">
             <div className="event-shortcuts">
-              <button
-                type="button"
-                onClick={() => document.getElementById("main-card")?.scrollIntoView({ behavior: "smooth" })}
-              >
+              <button type="button" onClick={() => scrollToSection("main-card")}>
                 Main Card
               </button>
-              <button
-                type="button"
-                onClick={() => document.getElementById("prelims")?.scrollIntoView({ behavior: "smooth" })}
-              >
+              <button type="button" onClick={() => scrollToSection("prelims")}>
                 Prelims
               </button>
             </div>
