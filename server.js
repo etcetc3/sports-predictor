@@ -13,18 +13,30 @@ const API_KEY = process.env.SPORTS_API_KEY;
 // 🗓 Upcoming Events (Scores API)
 app.get("/api/ufc/schedule", async (req, res) => {
   try {
-    const url = `https://api.sportsdata.io/v3/mma/scores/json/Schedule/UFC/2025?key=${API_KEY}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Status ${response.status}`);
-    const data = await response.json();
+    const currentYear = new Date().getFullYear();
+    const yearsToQuery = [currentYear, currentYear + 1];
+    const payloads = await Promise.all(
+      yearsToQuery.map(async (year) => {
+        const response = await fetch(
+          `https://api.sportsdata.io/v3/mma/scores/json/Schedule/UFC/${year}?key=${API_KEY}`
+        );
+        if (!response.ok) {
+          console.warn(`Schedule request for ${year} responded with ${response.status}`);
+          return [];
+        }
+        return response.json();
+      })
+    );
+
+    const combined = payloads.flat().filter(Boolean);
 
     // Nur kommende Events (Status = Scheduled)
-    const upcoming = data
-      .filter((e) => e.Status === "Scheduled")
-      .map((e) => ({
-        EventId: e.EventId,
-        Name: e.Name,
-        Date: e.Day || e.DateTime || e.Updated, 
+    const upcoming = combined
+      .filter((event) => event?.Status === "Scheduled")
+      .map((event) => ({
+        EventId: event.EventId,
+        Name: event.Name,
+        Date: event.Day || event.DateTime || event.Updated,
       }));
 
     res.json(upcoming);
@@ -49,16 +61,18 @@ app.get("/api/ufc/event/:id", async (req, res) => {
   }
 });
 
-// 🧍‍♂️ Fighter-Basisdaten (Height, Reach, Country, etc.)
+// 🧍‍♂️ Fighter-Daten inkl. Medien & Stats
 app.get("/api/ufc/fighters", async (req, res) => {
   try {
-    const url = `https://api.sportsdata.io/v3/mma/scores/json/FightersBasic?key=${API_KEY}`;
+    const url = `https://api.sportsdata.io/v3/mma/scores/json/Fighters?key=${API_KEY}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Status ${response.status}`);
     const data = await response.json();
 
-    // Optional: Nur UFC-Fighter
-    const ufcOnly = data.filter((f) => f.Organization?.includes("UFC"));
+    const ufcOnly = (Array.isArray(data) ? data : []).filter((fighter) =>
+      fighter?.Organization?.includes("UFC")
+    );
+
     res.json(ufcOnly);
   } catch (err) {
     console.error("Error fetching fighters:", err);
