@@ -1,7 +1,7 @@
 import requests
 
-API_URL = "https://api-inference.huggingface.co/models/gpt2"
-API_TOKEN = "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"
+API_URL = ""
+API_TOKEN = ""
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
 def generate_prediction(fights):
@@ -24,3 +24,4 @@ def generate_prediction(fights):
         print("AI ERROR:", e)
 
     return "[AI error]"
+
